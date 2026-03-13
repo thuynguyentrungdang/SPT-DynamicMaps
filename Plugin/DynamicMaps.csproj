@@ -138,17 +138,19 @@
   <Target Name="PostBuild" AfterTargets="PostBuildEvent">
     <ItemGroup>
       <OutputDLL Include="$(ProjectDir)$(OutDir)$(TargetName).dll" />
+      <CommonDLL Include="$(ProjectDir)$(OutDir)$(TargetName).Common.dll" />
       <License Include="$(ProjectDir)LICENSE" />
       <Resources Include="$(ProjectDir)Resources\**\*.*" />
+      <Libraries Include="$(ProjectDir)Libraries\**\*.*" />
     </ItemGroup>
 
     <!-- Copies the output and resources to tarkov game folder -->
-    <Copy SourceFiles="@(OutputDLL);@(Resources);@(License)" DestinationFolder="$(TarkovDir)BepInEx\plugins\DynamicMaps\%(RecursiveDir)" />
-    <Copy SourceFiles="@(OutputDLL);@(Resources);@(License)" DestinationFolder="$(TarkovDebugDir)BepinEx\plugins\DynamicMaps\%(RecursiveDir)" />
+    <Copy SourceFiles="@(OutputDLL);@(CommonDLL);@(Resources);@(License);@(Libraries)" DestinationFolder="$(TarkovDir)BepInEx\plugins\DynamicMaps\%(RecursiveDir)" />
+    <Copy SourceFiles="@(OutputDLL);@(CommonDLL);@(Resources);@(License);@(Libraries)" DestinationFolder="$(TarkovDebugDir)BepinEx\plugins\DynamicMaps\%(RecursiveDir)" />
 
     <!-- Creates a release zip file -->
     <RemoveDir Directories="$(ProjectDir)release" />
-    <Copy SourceFiles="@(OutputDLL);@(Resources);@(License)" DestinationFolder="$(ProjectDir)release\DynamicMaps\BepInEx\plugins\DynamicMaps\%(RecursiveDir)" />
+    <Copy SourceFiles="@(OutputDLL);@(CommonDLL);@(Resources);@(License);@(Libraries)" DestinationFolder="$(ProjectDir)release\DynamicMaps\BepInEx\plugins\DynamicMaps\%(RecursiveDir)" />
     <ZipDirectory SourceDirectory="$(ProjectDir)release\DynamicMaps\" DestinationFile="$(ProjectDir)release\DynamicMaps-$(Version)-$(SourceRevisionId).zip" />
   </Target>
 
