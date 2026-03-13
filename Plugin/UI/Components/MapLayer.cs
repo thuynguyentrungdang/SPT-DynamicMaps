@@ -66,11 +66,9 @@ namespace DynamicMaps.UI.Components
                 svgImage.sprite = svgSprite;
 
                 layer.Graphic = svgImage;
-
-                return layer;
             }
 
-            return null;
+            return layer;
         }
 
         public bool IsCoordinateInLayer(Vector3 coordinate)

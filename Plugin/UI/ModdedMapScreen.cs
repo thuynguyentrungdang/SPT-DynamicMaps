@@ -1,49 +1,67 @@
-using System;
-using System.Collections;
-using System.Collections.Generic;
 using BepInEx.Configuration;
 using Comfort.Common;
 using DG.Tweening;
 using DynamicMaps.Config;
 using DynamicMaps.Data;
 using DynamicMaps.DynamicMarkers;
+using DynamicMaps.ExternalModSupport;
+using DynamicMaps.ExternalModSupport.SamSWATHeliCrash;
 using DynamicMaps.Patches;
 using DynamicMaps.UI.Components;
 using DynamicMaps.UI.Controls;
 using DynamicMaps.Utils;
-using DynamicMaps.ExternalModSupport;
-using EFT.UI;
-using UnityEngine;
-using UnityEngine.UI;
-using DynamicMaps.ExternalModSupport.SamSWATHeliCrash;
 using EFT;
-using DynamicMaps.Common;
+using EFT.UI;
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using UnityEngine;
+using UnityEngine.Rendering.PostProcessing;
+using UnityEngine.UI;
 
 namespace DynamicMaps.UI
 {
-    public class ModdedMapScreen : MonoBehaviour
+    public partial class ModdedMapScreen : MonoBehaviour
     {
         #region Variables and Declerations
 
-        private const string _mapRelPath = "Maps";
+        private GameObject _mapBackgroundCanvasRoot;
+        private CanvasScaler _mapBackgroundCanvasScaler;
+        private Canvas _mapBackgroundCanvas;
+
+        private GameObject _mapBackgroundCameraRoot;
+        private Camera _mapBackgroundCamera;
+        private PostProcessLayer _mapBackgroundPostProcessLayer;
+
+        private RectTransform _mapBackgroundViewportRoot;
+        private MapBackgroundView _mapBackgroundView;
+        private Image _mapBackgroundVeilImage;
+
+        private AssetBundle _postFxBundle;
+        private PostProcessResources _postFxResources;
 
         private bool _initialized = false;
 
-        private static float _positionTweenTime = 0.25f;
-        private static float _scrollZoomScaler = 1.75f;
-        private static float _zoomScrollTweenTime = 0.25f;
+        private const string _postFxBundleRelativePath = "dynamicmaps-postfx";
+        private const string _mapRelPath = "Maps";
+        private const float _positionTweenTime = 0.25f;
+        private const float _scrollZoomScaler = 1.75f;
+        private const float _zoomScrollTweenTime = 0.25f;
+        private const float _positionTextFontSize = 15f;
 
-        private static Vector2 _levelSliderPosition = new Vector2(15f, 750f);
-        private static Vector2 _mapSelectDropdownPosition = new Vector2(-780f, -50f);
-        private static Vector2 _mapSelectDropdownSize = new Vector2(360f, 31f);
-        private static Vector2 _maskSizeModifierInRaid = new Vector2(0, -42f);
-        private static Vector2 _maskPositionInRaid = new Vector2(0, -20f);
-        private static Vector2 _maskSizeModifierOutOfRaid = new Vector2(0, -70f);
-        private static Vector2 _maskPositionOutOfRaid = new Vector2(0, -5f);
-        private static Vector2 _textAnchor = new Vector2(0f, 1f);
-        private static Vector2 _cursorPositionTextOffset = new Vector2(15f, -52f);
-        private static Vector2 _playerPositionTextOffset = new Vector2(15f, -68f);
-        private static float _positionTextFontSize = 15f;
+        private static readonly Vector2 _levelSliderPosition = new(15f, 750f);
+        private static readonly Vector2 _mapSelectDropdownPosition = new(-780f, -50f);
+        private static readonly Vector2 _mapSelectDropdownSize = new(360f, 31f);
+        private static readonly Vector2 _maskSizeModifierInRaid = new(0, -42f);
+        private static readonly Vector2 _maskPositionInRaid = new(0, -20f);
+        private static readonly Vector2 _maskSizeModifierOutOfRaid = new(0, -70f);
+        private static readonly Vector2 _maskPositionOutOfRaid = new(0, -5f);
+        private static readonly Vector2 _textAnchor = new(0f, 1f);
+        private static readonly Vector2 _cursorPositionTextOffset = new(15f, -52f);
+        private static readonly Vector2 _playerPositionTextOffset = new(15f, -68f);
+        private readonly Vector3[] _overlayViewportCorners = new Vector3[4];
 
         public RectTransform RectTransform => gameObject.GetRectTransform();
 
@@ -64,13 +82,13 @@ namespace DynamicMaps.UI
 
         // peek
         private MapPeekComponent _peekComponent;
-        private bool _isPeeking => _peekComponent != null && _peekComponent.IsPeeking;
-        private bool _showingMiniMap => _peekComponent != null && _peekComponent.ShowingMiniMap;
+        private bool IsPeeking => _peekComponent != null && _peekComponent.IsPeeking;
+        private bool ShowingMiniMap => _peekComponent != null && _peekComponent.ShowingMiniMap;
 
         public bool IsShowingMapScreen { get; private set; }
 
         // dynamic map marker providers
-        private Dictionary<Type, IDynamicMarkerProvider> _dynamicMarkerProviders = [];
+        private readonly Dictionary<Type, IDynamicMarkerProvider> _dynamicMarkerProviders = [];
 
         // config
         private bool _autoCenterOnPlayerMarker = true;
@@ -97,42 +115,6 @@ namespace DynamicMaps.UI
         private KeyboardShortcut _zoomMiniMapOutShortcut;
 
         internal static CombinedConfig _config;
-
-        internal class CombinedConfig(ModConfig ServerConfig)
-        {
-            public bool ShowPlayerMarker => ServerConfig.AllowShowPlayerMarker && Settings.ShowPlayerMarker.Value;
-            public bool ShowFriendlyPlayerMarkersInRaid => ServerConfig.AllowShowFriendlyPlayerMarkersInRaid && Settings.ShowFriendlyPlayerMarkersInRaid.Value;
-            public bool ShowEnemyPlayerMarkersInRaid => ServerConfig.AllowShowEnemyPlayerMarkersInRaid && Settings.ShowEnemyPlayerMarkersInRaid.Value;
-            public bool ShowScavMarkersInRaid => ServerConfig.AllowShowScavMarkersInRaid && Settings.ShowScavMarkersInRaid.Value;
-            public bool ShowBossMarkersInRaid => ServerConfig.AllowShowBossMarkersInRaid && Settings.ShowBossMarkersInRaid.Value;
-            public bool ShowLockedDoorStatus => ServerConfig.AllowShowLockedDoorStatus && Settings.ShowLockedDoorStatus.Value;
-            public bool ShowQuestsInRaid => ServerConfig.AllowShowQuestsInRaid && Settings.ShowQuestsInRaid.Value;
-            public bool ShowExtractsInRaid => ServerConfig.AllowShowExtractsInRaid && Settings.ShowExtractsInRaid.Value;
-            public bool ShowExtractsStatusInRaid => ServerConfig.AllowShowExtractStatusInRaid && Settings.ShowExtractStatusInRaid.Value;
-            public bool ShowTransitPointsInRaid => ServerConfig.AllowShowTransitPointsInRaid && Settings.ShowTransitPointsInRaid.Value;
-            public bool ShowSecretExtractsInRaid => ServerConfig.AllowShowSecretExtractsInRaid && Settings.ShowSecretPointsInRaid.Value;
-            public bool ShowDroppedBackpackInRaid => ServerConfig.AllowShowDroppedBackpackInRaid && Settings.ShowDroppedBackpackInRaid.Value;
-            public bool ShowWishlistedItemsInRaid => ServerConfig.AllowShowWishlistedItemsInRaid && Settings.ShowWishListItemsInRaid.Value;
-            public bool ShowBTRInRaid => ServerConfig.AllowShowBTRInRaid && Settings.ShowBTRInRaid.Value;
-            public bool ShowAirdropsInRaid => ServerConfig.AllowShowAirdropsInRaid && Settings.ShowAirdropsInRaid.Value;
-            public bool ShowHiddenStashesInRaid => ServerConfig.AllowShowHiddenStashesInRaid && Settings.ShowHiddenStashesInRaid.Value;
-            public bool ShowFriendlyCorpses => ServerConfig.AllowShowFriendlyCorpses && Settings.ShowFriendlyCorpsesInRaid.Value;
-            public bool ShowKilledCorpses => ServerConfig.AllowShowKilledCorpses && Settings.ShowKilledCorpsesInRaid.Value;
-            public bool ShowFriendlyKilledCorpses => ServerConfig.AllowShowFriendlyKilledCorpses && Settings.ShowFriendlyKilledCorpsesInRaid.Value;
-            public bool ShowBossCorpses => ServerConfig.AllowShowBossCorpses && Settings.ShowBossCorpsesInRaid.Value;
-            public bool ShowOtherCorpses => ServerConfig.AllowShowOtherCorpses && Settings.ShowOtherCorpsesInRaid.Value;
-            public bool ShowHeliCrashSiteInRaid => ServerConfig.AllowShowHeliCrashSiteInRaid && Settings.ShowHeliCrashMarker.Value;
-            public bool AllowMiniMap => ServerConfig.AllowMiniMap && Settings.MiniMapEnabled.Value;
-            public bool RequireMapInInventory => ServerConfig.RequireMapInInventory || Settings.RequireMapInInventory.Value;
-            public int ShowScavIntelLevel => ServerConfig.ShowScavIntelLevel > Settings.ShowScavIntelLevel.Value ? ServerConfig.ShowScavIntelLevel : Settings.ShowScavIntelLevel.Value;
-            public int ShowPmcIntelLevel => ServerConfig.ShowPmcIntelLevel > Settings.ShowPmcIntelLevel.Value ? ServerConfig.ShowPmcIntelLevel : Settings.ShowPmcIntelLevel.Value;
-            public int ShowBossIntelLevel => ServerConfig.ShowBossIntelLevel > Settings.ShowBossIntelLevel.Value ? ServerConfig.ShowBossIntelLevel : Settings.ShowBossIntelLevel.Value;
-            public int ShowFriendlyIntelLevel => ServerConfig.ShowFriendlyIntelLevel > Settings.ShowFriendlyIntelLevel.Value ? ServerConfig.ShowFriendlyIntelLevel : Settings.ShowFriendlyIntelLevel.Value;
-            public int ShowAirdropIntelLevel => ServerConfig.ShowAirDropIntelLevel > Settings.ShowAirdropIntelLevel.Value ? ServerConfig.ShowAirDropIntelLevel : Settings.ShowAirdropIntelLevel.Value;
-            public int ShowCorpseIntelLevel => ServerConfig.ShowCorpseIntelLevel > Settings.ShowCorpseIntelLevel.Value ? ServerConfig.ShowCorpseIntelLevel : Settings.ShowCorpseIntelLevel.Value;
-            public int ShowWishListItemsIntelLevel => ServerConfig.ShowWishListIntelLevel > Settings.ShowWishListItemsIntelLevel.Value ? ServerConfig.ShowWishListIntelLevel : Settings.ShowWishListItemsIntelLevel.Value;
-            public int ShowHiddenStashIntelLevel => ServerConfig.ShowHiddenStashIntelLevel > Settings.ShowHiddenStashIntelLevel.Value ? ServerConfig.ShowHiddenStashIntelLevel : Settings.ShowHiddenStashIntelLevel.Value;
-        }
 
         private float _zoomMapHotkeySpeed = 2.5f;
 
@@ -164,6 +146,7 @@ namespace DynamicMaps.UI
             var scrollMaskImage = scrollMaskGO.AddComponent<Image>();
             scrollMaskImage.color = new Color(0f, 0f, 0f, 0.5f);
             _scrollMask = scrollMaskGO.AddComponent<Mask>();
+            _scrollMask.showMaskGraphic = false;
 
             // set up scroll rect
             _scrollRect = scrollRectGO.AddComponent<ScrollRect>();
@@ -171,6 +154,11 @@ namespace DynamicMaps.UI
             _scrollRect.movementType = ScrollRect.MovementType.Unrestricted;
             _scrollRect.viewport = _scrollMask.GetRectTransform();
             _scrollRect.content = _mapView.RectTransform;
+
+            CreateMapBackgroundRenderRoot();
+
+            // keep background level in sync with the real map view
+            _mapView.OnLevelSelected += _mapBackgroundView.SelectTopLevel;
 
             // create map controls
 
@@ -216,10 +204,22 @@ namespace DynamicMaps.UI
             Settings.MiniMapScreenOffsetY.SettingChanged -= (sender, args) => AdjustForMiniMap(false);
             Settings.MiniMapSizeX.SettingChanged -= (sender, args) => AdjustForMiniMap(false);
             Settings.MiniMapSizeY.SettingChanged -= (sender, args) => AdjustForMiniMap(false);
+
+            if (_mapBackgroundCanvasRoot != null)
+                Destroy(_mapBackgroundCanvasRoot);
+
+            if (_mapBackgroundCameraRoot != null)
+                Destroy(_mapBackgroundCameraRoot);
+
+            if (_postFxBundle != null)
+                _postFxBundle.Unload(false);
         }
 
         private void Update()
         {
+            SyncBackgroundViewportToOverlay();
+            SyncBackgroundView();
+
             // because we have a scroll rect, it seems to eat OnScroll via IScrollHandler
             var scroll = Input.GetAxis("Mouse ScrollWheel");
             if (scroll != 0f)
@@ -231,7 +231,7 @@ namespace DynamicMaps.UI
             }
 
             // change level hotkeys
-            if (!_showingMiniMap)
+            if (!ShowingMiniMap)
             {
                 if (_moveMapLevelUpShortcut.BetterIsDown())
                 {
@@ -248,7 +248,7 @@ namespace DynamicMaps.UI
             var shiftMapX = 0f;
             var shiftMapY = 0f;
 
-            if (!_showingMiniMap)
+            if (!ShowingMiniMap)
             {
                 if (_moveMapUpShortcut.BetterIsPressed())
                 {
@@ -276,7 +276,7 @@ namespace DynamicMaps.UI
                 _mapView.ScaledShiftMap(new Vector2(shiftMapX, shiftMapY), _moveMapSpeed * Time.deltaTime, false);
             }
 
-            if (_showingMiniMap)
+            if (ShowingMiniMap)
             {
                 OnZoomMini();
 
@@ -297,11 +297,227 @@ namespace DynamicMaps.UI
             }
         }
 
-        // private void OnDisable()
-        // {
-        //     OnHide();
-        // }
+        #endregion
 
+        #region Unity Adjacent Camera Assistance
+        private void CopyBackgroundCanvasScalerFromOverlayUi()
+        {
+            var sourceScaler = GetComponentInParent<CanvasScaler>();
+
+            if (sourceScaler == null && Singleton<CommonUI>.Instantiated && Singleton<CommonUI>.Instance != null)
+            {
+                sourceScaler = Singleton<CommonUI>.Instance.GetComponentInParent<CanvasScaler>();
+                if (sourceScaler == null)
+                {
+                    sourceScaler = Singleton<CommonUI>.Instance.GetComponentInChildren<CanvasScaler>(true);
+                }
+            }
+
+            if (sourceScaler == null)
+            {
+                Plugin.Log.LogWarning("Could not find source CanvasScaler. Using fallback values.");
+                _mapBackgroundCanvasScaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+                _mapBackgroundCanvasScaler.referenceResolution = new Vector2(1920f, 1080f);
+                _mapBackgroundCanvasScaler.screenMatchMode = CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
+                _mapBackgroundCanvasScaler.matchWidthOrHeight = 0.5f;
+                _mapBackgroundCanvasScaler.referencePixelsPerUnit = 100f;
+                return;
+            }
+
+            _mapBackgroundCanvasScaler.uiScaleMode = sourceScaler.uiScaleMode;
+            _mapBackgroundCanvasScaler.referenceResolution = sourceScaler.referenceResolution;
+            _mapBackgroundCanvasScaler.screenMatchMode = sourceScaler.screenMatchMode;
+            _mapBackgroundCanvasScaler.matchWidthOrHeight = sourceScaler.matchWidthOrHeight;
+            _mapBackgroundCanvasScaler.referencePixelsPerUnit = sourceScaler.referencePixelsPerUnit;
+            _mapBackgroundCanvasScaler.scaleFactor = sourceScaler.scaleFactor;
+            _mapBackgroundCanvasScaler.dynamicPixelsPerUnit = sourceScaler.dynamicPixelsPerUnit;
+            _mapBackgroundCanvasScaler.physicalUnit = sourceScaler.physicalUnit;
+            _mapBackgroundCanvasScaler.fallbackScreenDPI = sourceScaler.fallbackScreenDPI;
+            _mapBackgroundCanvasScaler.defaultSpriteDPI = sourceScaler.defaultSpriteDPI;
+        }
+
+        private static void SetLayerRecursively(GameObject go, int layer)
+        {
+            go.layer = layer;
+
+            foreach (Transform child in go.transform)
+            {
+                SetLayerRecursively(child.gameObject, layer);
+            }
+        }
+
+        private void SetCameraLayer()
+        {
+            int uiLayer = 31;
+            bool[] used = new bool[32];
+            foreach (var go in Resources.FindObjectsOfTypeAll<GameObject>())
+            {
+                if (go == null) continue;
+                used[go.layer] = true;
+            }
+
+            for (int i = 31; i >= 0; i--)
+            {
+                if (!used[i])
+                {
+                    Plugin.Log.LogInfo($"Changed BackkgroundMapCameraLayer to {i}: name='{LayerMask.LayerToName(i)}'");
+                    uiLayer = i;
+                    break;
+                }
+
+            }
+            _mapBackgroundCamera.cullingMask = 1 << uiLayer;
+            SetLayerRecursively(_mapBackgroundCanvasRoot, uiLayer);
+        }
+
+        private void CreateMapBackgroundRenderRoot()
+        {
+            _mapBackgroundCameraRoot = new GameObject("DynamicMaps_MapBackgroundCamera");
+            DontDestroyOnLoad(_mapBackgroundCameraRoot);
+            _mapBackgroundCamera = _mapBackgroundCameraRoot.AddComponent<Camera>();
+            _mapBackgroundCamera.clearFlags = CameraClearFlags.Depth;
+            _mapBackgroundCamera.depth = 5000f;
+            _mapBackgroundCamera.allowHDR = false;
+            _mapBackgroundCamera.allowMSAA = false;
+            _mapBackgroundCamera.orthographic = true;
+            _mapBackgroundCamera.nearClipPlane = 0.01f;
+            _mapBackgroundCamera.farClipPlane = 100f;
+            _mapBackgroundCamera.rect = new Rect(0f, 0f, 1f, 1f);
+
+            _mapBackgroundCanvasRoot = new GameObject(
+                "DynamicMaps_MapBackgroundCanvas",
+                typeof(RectTransform),
+                typeof(Canvas),
+                typeof(CanvasScaler),
+                typeof(GraphicRaycaster));
+            DontDestroyOnLoad(_mapBackgroundCanvasRoot);
+
+            _mapBackgroundCanvas = _mapBackgroundCanvasRoot.GetComponent<Canvas>();
+            _mapBackgroundCanvasScaler = _mapBackgroundCanvasRoot.GetComponent<CanvasScaler>();
+            CopyBackgroundCanvasScalerFromOverlayUi();
+
+            var overlayCanvas = _mapView.GetComponentInParent<Canvas>();
+            Plugin.Log.LogInfo(
+                $"Overlay canvas scaleFactor={overlayCanvas?.scaleFactor}, " +
+                $"Background canvas scaleFactor={_mapBackgroundCanvas?.scaleFactor}");
+            Plugin.Log.LogInfo($"Background camera rect={_mapBackgroundCamera.rect}");
+
+            _mapBackgroundCanvas.renderMode = RenderMode.ScreenSpaceCamera;
+            _mapBackgroundCanvas.worldCamera = _mapBackgroundCamera;
+            _mapBackgroundCanvas.planeDistance = 1f;
+            _mapBackgroundCanvas.overrideSorting = true;
+            _mapBackgroundCanvas.sortingOrder = -100;
+
+            var canvasRootRt = _mapBackgroundCanvasRoot.GetRectTransform();
+            canvasRootRt.anchorMin = Vector2.zero;
+            canvasRootRt.anchorMax = Vector2.one;
+            canvasRootRt.pivot = new Vector2(0.5f, 0.5f);
+            canvasRootRt.offsetMin = Vector2.zero;
+            canvasRootRt.offsetMax = Vector2.zero;
+            canvasRootRt.anchoredPosition = Vector2.zero;
+
+            var viewportRootGO = UIUtils.CreateUIGameObject(_mapBackgroundCanvasRoot, "MapViewport");
+            _mapBackgroundViewportRoot = viewportRootGO.GetRectTransform();
+
+            _mapBackgroundViewportRoot.anchorMin = new Vector2(0.5f, 0.5f);
+            _mapBackgroundViewportRoot.anchorMax = new Vector2(0.5f, 0.5f);
+            _mapBackgroundViewportRoot.pivot = new Vector2(0.5f, 0.5f);
+            _mapBackgroundViewportRoot.sizeDelta = Vector2.zero;
+            _mapBackgroundViewportRoot.anchoredPosition = Vector2.zero;
+
+            var veilGO = UIUtils.CreateUIGameObject(viewportRootGO, "BackgroundVeil");
+            var veilRt = veilGO.GetRectTransform();
+            StretchToParent(veilRt);
+
+            _mapBackgroundVeilImage = veilGO.AddComponent<Image>();
+            _mapBackgroundVeilImage.raycastTarget = false;
+            _mapBackgroundVeilImage.color = new Color(0f, 0f, 0f, 0.5f);
+
+            // Make sure it's behind the actual map background.
+            veilGO.transform.SetAsFirstSibling();
+
+            _mapBackgroundView = MapBackgroundView.Create(viewportRootGO, "MapBackgroundView");
+            _mapBackgroundView.RectTransform.anchorMin = new Vector2(0.5f, 0.5f);
+            _mapBackgroundView.RectTransform.anchorMax = new Vector2(0.5f, 0.5f);
+            _mapBackgroundView.RectTransform.pivot = new Vector2(0.5f, 0.5f);
+            _mapBackgroundView.RectTransform.anchoredPosition = Vector2.zero;
+            _mapBackgroundView.RectTransform.localScale = Vector3.one;
+            _mapBackgroundView.RectTransform.localRotation = Quaternion.identity;
+
+            SetupMapBackgroundCameraSmaa();
+
+            _mapBackgroundCanvasRoot.SetActive(false);
+            _mapBackgroundCamera.enabled = false;
+        }
+
+        private void SetupMapBackgroundCameraSmaa()
+        {
+            var resources = LoadPostFxResources();
+            if (resources == null)
+            {
+                Plugin.Log.LogWarning("PostProcessResources could not be loaded. Background SMAA disabled.");
+                return;
+            }
+
+            _mapBackgroundPostProcessLayer = _mapBackgroundCamera.gameObject.AddComponent<PostProcessLayer>();
+            _mapBackgroundPostProcessLayer.Init(resources);
+            _mapBackgroundPostProcessLayer.volumeTrigger = _mapBackgroundCamera.transform;
+            _mapBackgroundPostProcessLayer.volumeLayer = 0;
+            _mapBackgroundPostProcessLayer.antialiasingMode =
+                PostProcessLayer.Antialiasing.SubpixelMorphologicalAntialiasing;
+            _mapBackgroundPostProcessLayer.subpixelMorphologicalAntialiasing.quality =
+                SubpixelMorphologicalAntialiasing.Quality.High;
+        }
+
+        private void SetBackgroundRenderObjectsActive(bool active)
+        {
+            if (_mapBackgroundCanvasRoot != null)
+                _mapBackgroundCanvasRoot.SetActive(active);
+
+            if (_mapBackgroundCamera != null)
+                _mapBackgroundCamera.enabled = active;
+        }
+
+        private void SyncBackgroundView()
+        {
+            if (_mapBackgroundView == null || _mapView == null)
+                return;
+
+            if (_mapView.CurrentMapDef == null || _mapBackgroundView.CurrentMapDef == null)
+                return;
+
+            if (_mapView.CurrentMapDef != _mapBackgroundView.CurrentMapDef)
+                return;
+
+            var src = _mapView.RectTransform;
+            var dst = _mapBackgroundView.RectTransform;
+
+            var srcViewport = _scrollMask.GetRectTransform();
+            var dstViewport = _mapBackgroundViewportRoot;
+
+            var srcViewportSize = srcViewport.rect.size;
+            var dstViewportSize = dstViewport.rect.size;
+
+            if (srcViewportSize.x <= 0.01f || srcViewportSize.y <= 0.01f ||
+                dstViewportSize.x <= 0.01f || dstViewportSize.y <= 0.01f)
+                return;
+
+            // Convert overlay viewport-space units into background viewport-space units.
+            var unitScale = new Vector2(
+                dstViewportSize.x / srcViewportSize.x,
+                dstViewportSize.y / srcViewportSize.y);
+
+            dst.anchoredPosition = new Vector2(
+                src.anchoredPosition.x * unitScale.x,
+                src.anchoredPosition.y * unitScale.y);
+
+            dst.localScale = new Vector3(
+                src.localScale.x * unitScale.x,
+                src.localScale.y * unitScale.y,
+                1f);
+
+            dst.localRotation = src.localRotation;
+        }
         #endregion
 
         #region Show And Hide Top Level
@@ -310,7 +526,7 @@ namespace DynamicMaps.UI
         {
             if (_peekComponent is not null)
             {
-                _peekComponent.WasMiniMapActive = _showingMiniMap;
+                _peekComponent.WasMiniMapActive = ShowingMiniMap;
 
                 _peekComponent?.EndPeek();
                 _peekComponent?.EndMiniMap();
@@ -352,7 +568,12 @@ namespace DynamicMaps.UI
             }
 
             _isShown = true;
-            gameObject.SetActive(GameUtils.ShouldShowMapInRaid());
+            var shouldShow = GameUtils.ShouldShowMapInRaid();
+            gameObject.SetActive(shouldShow);
+            SetBackgroundRenderObjectsActive(shouldShow);
+
+            // update camera layer just in case, layer may be not free anymore, worst case it'll be grass lol
+            SetCameraLayer();
 
             // populate map select dropdown
             _mapSelectDropdown.LoadMapDefsFromPath(_mapRelPath);
@@ -387,6 +608,7 @@ namespace DynamicMaps.UI
 
             _isShown = false;
             gameObject.SetActive(false);
+            SetBackgroundRenderObjectsActive(false);
         }
 
         private void OnRaidEnd()
@@ -416,6 +638,7 @@ namespace DynamicMaps.UI
 
             // unload map completely when raid ends, since we've removed markers
             _mapView.UnloadMap();
+            _mapBackgroundView?.UnloadMap();
         }
 
         #endregion
@@ -441,6 +664,48 @@ namespace DynamicMaps.UI
 
             _cursorPositionText.RectTransform.anchoredPosition = _cursorPositionTextOffset;
             _playerPositionText.RectTransform.anchoredPosition = _playerPositionTextOffset;
+        }
+
+        private static void StretchToParent(RectTransform rt)
+        {
+            rt.anchorMin = Vector2.zero;
+            rt.anchorMax = Vector2.one;
+            rt.pivot = new Vector2(0.5f, 0.5f);
+            rt.offsetMin = Vector2.zero;
+            rt.offsetMax = Vector2.zero;
+            rt.anchoredPosition = Vector2.zero;
+        }
+
+        private PostProcessResources LoadPostFxResources()
+        {
+            if (_postFxResources != null)
+            {
+                return _postFxResources;
+            }
+
+            var bundlePath = Path.Combine(Plugin.Path, _postFxBundleRelativePath);
+            if (!File.Exists(bundlePath))
+            {
+                Plugin.Log.LogWarning($"PostFX bundle not found at: {bundlePath}");
+                return null;
+            }
+
+            _postFxBundle = AssetBundle.LoadFromFile(bundlePath);
+            if (_postFxBundle == null)
+            {
+                Plugin.Log.LogError($"Failed to load PostFX bundle: {bundlePath}");
+                return null;
+            }
+
+            _postFxResources = _postFxBundle.LoadAllAssets<PostProcessResources>().FirstOrDefault();
+            if (_postFxResources == null)
+            {
+                Plugin.Log.LogError("No PostProcessResources asset found in PostFX bundle.");
+                return null;
+            }
+
+            Plugin.Log.LogInfo($"Loaded PostProcessResources from bundle: {bundlePath}");
+            return _postFxResources;
         }
 
         private void AdjustForOutOfRaid()
@@ -487,10 +752,10 @@ namespace DynamicMaps.UI
         {
             var speed = playAnimation ? 0.35f : 0f;
 
-            var cornerPosition = ConvertEnumToScreenPos(Settings.MiniMapPosition.Value);
+            var cornerPosition = Settings.MiniMapPosition.Value.ToScreenPos();
 
             var offset = new Vector2(Settings.MiniMapScreenOffsetX.Value, Settings.MiniMapScreenOffsetY.Value);
-            offset *= ConvertEnumToScenePivot(Settings.MiniMapPosition.Value);
+            offset *= Settings.MiniMapPosition.Value.ToScenePivot();
 
             var size = new Vector2(Settings.MiniMapSizeX.Value, Settings.MiniMapSizeY.Value);
 
@@ -505,54 +770,41 @@ namespace DynamicMaps.UI
             _levelSelectSlider.gameObject.SetActive(false);
         }
 
-        private Vector2 ConvertEnumToScreenPos(EMiniMapPosition pos)
+        private void SyncBackgroundViewportToOverlay()
         {
-            // 0,0 Bottom left
-            // 0,1 Top left
-            // 1,1 Top right
-            // 1,0 Bottom right
+            if (_scrollMask == null || _mapBackgroundViewportRoot == null || _mapBackgroundCanvas == null)
+                return;
 
-            switch (pos)
+            var src = _scrollMask.GetRectTransform();
+            src.GetWorldCorners(_overlayViewportCorners);
+
+            var bl = RectTransformUtility.WorldToScreenPoint(null, _overlayViewportCorners[0]);
+            var tr = RectTransformUtility.WorldToScreenPoint(null, _overlayViewportCorners[2]);
+
+            var sizePx = new Vector2(
+                Mathf.Abs(tr.x - bl.x),
+                Mathf.Abs(tr.y - bl.y));
+
+            var centerPx = (bl + tr) * 0.5f;
+
+            var bgParent = _mapBackgroundViewportRoot.parent as RectTransform;
+            if (bgParent == null)
+                return;
+
+            if (!RectTransformUtility.ScreenPointToLocalPointInRectangle(
+                    bgParent,
+                    centerPx,
+                    _mapBackgroundCanvas.worldCamera,
+                    out var localCenter))
             {
-                case EMiniMapPosition.TopRight:
-                    return new Vector2(1, 1);
-
-                case EMiniMapPosition.BottomRight:
-                    return new Vector2(1, 0);
-
-                case EMiniMapPosition.TopLeft:
-                    return new Vector2(0, 1);
-
-                case EMiniMapPosition.BottomLeft:
-                    return new Vector2(0, 0);
+                return;
             }
 
-            return Vector2.zero;
-        }
-
-        private Vector2 ConvertEnumToScenePivot(EMiniMapPosition pos)
-        {
-            // Top right = neg neg
-            // Bottom right = neg pos
-            // Top left = pos neg
-            // Bottom left = pos pos
-
-            switch (pos)
-            {
-                case EMiniMapPosition.TopRight:
-                    return new Vector2(-1, -1);
-
-                case EMiniMapPosition.BottomRight:
-                    return new Vector2(-1, 1);
-
-                case EMiniMapPosition.TopLeft:
-                    return new Vector2(1, -1);
-
-                case EMiniMapPosition.BottomLeft:
-                    return new Vector2(1, 1);
-            }
-
-            return Vector2.zero;
+            _mapBackgroundViewportRoot.anchorMin = new Vector2(0.5f, 0.5f);
+            _mapBackgroundViewportRoot.anchorMax = new Vector2(0.5f, 0.5f);
+            _mapBackgroundViewportRoot.pivot = new Vector2(0.5f, 0.5f);
+            _mapBackgroundViewportRoot.sizeDelta = sizePx;
+            _mapBackgroundViewportRoot.anchoredPosition = localCenter;
         }
 
         #endregion
@@ -561,11 +813,11 @@ namespace DynamicMaps.UI
 
         private void OnShowInRaid(bool playAnimation)
         {
-            if (_showingMiniMap)
+            if (ShowingMiniMap)
             {
                 AdjustForMiniMap(playAnimation);
             }
-            else if (_isPeeking)
+            else if (IsPeeking)
             {
                 AdjustForPeek(playAnimation);
             }
@@ -609,14 +861,14 @@ namespace DynamicMaps.UI
             }
 
             // Don't set the map position if we're the mini-map, otherwise it can cause artifacting
-            if (_rememberMapPosition && !_showingMiniMap && _mapView.MainMapPos != Vector2.zero)
+            if (_rememberMapPosition && !ShowingMiniMap && _mapView.MainMapPos != Vector2.zero)
             {
                 _mapView.SetMapPos(_mapView.MainMapPos, _transitionAnimations ? 0.35f : 0f);
                 return;
             }
 
             // Auto centering while the minimap is active here can cause artifacting
-            if (_autoCenterOnPlayerMarker && !_showingMiniMap)
+            if (_autoCenterOnPlayerMarker && !ShowingMiniMap)
             {
                 // change zoom to desired level
                 if (_resetZoomOnCenter)
@@ -697,7 +949,7 @@ namespace DynamicMaps.UI
 
         private void OnScroll(float scrollAmount)
         {
-            if (_isPeeking || _showingMiniMap)
+            if (IsPeeking || ShowingMiniMap)
             {
                 return;
             }
@@ -715,6 +967,7 @@ namespace DynamicMaps.UI
 
                 return;
             }
+
 
             RectTransformUtility.ScreenPointToLocalPointInRectangle(
                 _mapView.RectTransform, Input.mousePosition, null, out Vector2 mouseRelative);
@@ -779,7 +1032,7 @@ namespace DynamicMaps.UI
 
         private void OnCenter()
         {
-            if (_centerPlayerShortcut.BetterIsDown() || _showingMiniMap)
+            if (_centerPlayerShortcut.BetterIsDown() || ShowingMiniMap)
             {
                 var player = GameUtils.GetMainPlayer();
 
@@ -789,8 +1042,8 @@ namespace DynamicMaps.UI
 
                     _mapView.ShiftMapToCoordinate(
                         mapPosition,
-                        _showingMiniMap ? 0f : _positionTweenTime,
-                        _showingMiniMap);
+                        ShowingMiniMap ? 0f : _positionTweenTime,
+                        ShowingMiniMap);
 
                     _mapView.SelectLevelByCoords(mapPosition);
                 }
@@ -1007,7 +1260,7 @@ namespace DynamicMaps.UI
 
         private void ChangeMap(MapDef mapDef)
         {
-            if (mapDef == null || _mapView.CurrentMapDef == mapDef)
+            if (mapDef == null || (_mapView.CurrentMapDef == mapDef && _mapBackgroundView.CurrentMapDef == mapDef))
             {
                 return;
             }
@@ -1021,7 +1274,24 @@ namespace DynamicMaps.UI
                 AdjustSizeAndPosition();
             }
 
+            Canvas.ForceUpdateCanvases();
+
+            _mapBackgroundView.UnloadMap();
+            _mapView.UnloadMap();
             _mapView.LoadMap(mapDef);
+            _mapView.SetLayerVisibility(false);
+            SetCameraLayer();
+
+            _mapBackgroundView.RectTransform.anchoredPosition = Vector2.zero;
+            _mapBackgroundView.RectTransform.localScale = Vector3.one;
+            _mapBackgroundView.RectTransform.localRotation = Quaternion.identity;
+            _mapBackgroundView.LoadMap(mapDef);
+            _mapBackgroundView.SelectTopLevel(_mapView.SelectedLevel);
+
+            _mapBackgroundView.RectTransform.anchorMin = new Vector2(0.5f, 0.5f);
+            _mapBackgroundView.RectTransform.anchorMax = new Vector2(0.5f, 0.5f);
+            _mapBackgroundView.RectTransform.pivot = new Vector2(0.5f, 0.5f);
+            _mapBackgroundView.RectTransform.anchoredPosition = Vector2.zero;
 
             _mapSelectDropdown.OnLoadMap(mapDef);
             _levelSelectSlider.OnLoadMap(mapDef, _mapView.SelectedLevel);

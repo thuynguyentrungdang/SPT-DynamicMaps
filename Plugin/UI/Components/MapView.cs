@@ -290,18 +290,23 @@ namespace DynamicMaps.UI.Components
 
         public void SetMinMaxZoom(RectTransform parentTransform)
         {
-            // set zoom min and max based on size of map and size of mask
-            var mapSize = RectTransform.sizeDelta;
-            ZoomMin = Mathf.Min(parentTransform.sizeDelta.x / mapSize.x, parentTransform.sizeDelta.y / mapSize.y) / _zoomMinScaler;
+            Canvas.ForceUpdateCanvases();
+
+            var mapSize = RectTransform.rect.size;
+            var parentSize = parentTransform.rect.size;
+
+            if (mapSize.x <= 0f || mapSize.y <= 0f || parentSize.x <= 0f || parentSize.y <= 0f)
+            {
+                Plugin.Log.LogWarning($"SetMinMaxZoom invalid sizes. map={mapSize}, parent={parentSize}");
+                return;
+            }
+
+            ZoomMin = Mathf.Min(parentSize.x / mapSize.x, parentSize.y / mapSize.y) / _zoomMinScaler;
             ZoomMax = _zoomMaxScaler * ZoomMin;
 
-            // this will set everything up for initial zoom
             SetMapZoom(ZoomMin, 0);
 
-            // shift map to center it
-            // FIXME: this doesn't center in the parent
             RectTransform.anchoredPosition = Vector2.zero;
-
             var midpoint = MathUtils.GetMidpoint(CurrentMapDef.Bounds.Min, CurrentMapDef.Bounds.Max);
             ShiftMapToCoordinate(midpoint, 0, false);
         }
@@ -441,6 +446,11 @@ namespace DynamicMaps.UI.Components
             {
                 UpdateLayerBound(bound);
             }
+        }
+
+        public void SetLayerVisibility(bool visible)
+        {
+            MapLayerContainer?.SetActive(visible);
         }
     }
 }
