@@ -87,6 +87,7 @@ namespace DynamicMaps.UI.Components
         public MapView ContainingMapView { get; set; }
 
         public Image Image { get; protected set; }
+        public Image ExtraImage { get; protected set; }
         public TextMeshProUGUI Label { get; protected set; }
         public RectTransform RectTransform => gameObject.transform as RectTransform;
         public RectTransform ZoneRectTransform { get; protected set; }
@@ -308,8 +309,8 @@ namespace DynamicMaps.UI.Components
         public static MapMarker Create(GameObject parent, GameObject zoneParent, MapMarkerDef def, Vector2 size, float degreesRotation, float scale)
         {
             var mapMarker = Create<MapMarker>(parent, def.Text, def.Category, def.ImagePath, def.Color, def.Position, size,
-                                              def.Pivot, degreesRotation, scale, def.ShowInRaid, def.Sprite,
-                                              (def.Category == "Quest" ? new Vector2(0.5f, 0f) : null));
+                                              def.Pivot, degreesRotation, scale, def.ShowInRaid, def.Sprite, def.LayeredSprite,
+                                              (def.Category == "Quest" && def.Sprite == null ? new Vector2(0.5f, 0f) : null));
             mapMarker.AssociatedItemId = def.AssociatedItemId;
 
             if (def.ZoneTrigger != null)
@@ -337,7 +338,7 @@ namespace DynamicMaps.UI.Components
 
         public static T Create<T>(GameObject parent, string text, string category, string imageRelativePath, Color color,
                                   Vector3 position, Vector2 size, Vector2 pivot, float degreesRotation, float scale,
-                                  bool showInRaid = true, Sprite sprite = null, Vector2? markerPivot = null)
+                                  bool showInRaid = true, Sprite sprite = null, Sprite layeredSprite = null, Vector2? markerPivot = null)
             where T : MapMarker
         {
             var go = UIUtils.CreateUIGameObject(parent, $"MapMarker {text}");
@@ -406,6 +407,20 @@ namespace DynamicMaps.UI.Components
                 : sprite;
             marker.Image.type = Image.Type.Simple;
 
+            if (layeredSprite != null)
+            {
+                var layeredImageGO = UIUtils.CreateUIGameObject(visualGO, "image");
+                layeredImageGO.AddComponent<CanvasRenderer>();
+                layeredImageGO.GetRectTransform().sizeDelta = size;
+                layeredImageGO.GetRectTransform().pivot = markerPivot.HasValue ? markerPivot.Value : new Vector2(0.5f, 0.5f);
+
+                marker.ExtraImage = layeredImageGO.AddComponent<Image>();
+                marker.ExtraImage.raycastTarget = false;
+                marker.ExtraImage.type = Image.Type.Simple;
+                marker.ExtraImage.sprite = layeredSprite;
+                marker.ExtraImage.color = new Color(marker.ExtraImage.color.r, marker.ExtraImage.color.g, marker.ExtraImage.color.b, color.a);
+            }
+
             // label
             var labelGO = UIUtils.CreateUIGameObject(visualGO, "label");
             labelGO.AddComponent<CanvasRenderer>();
@@ -468,6 +483,7 @@ namespace DynamicMaps.UI.Components
         {
             _rotation = degreesRotation;
             Image.gameObject.GetRectTransform().localRotation = Quaternion.Euler(0, 0, degreesRotation - _initialRotation);
+            ExtraImage?.gameObject.GetRectTransform().localRotation = Quaternion.Euler(0, 0, degreesRotation - _initialRotation);
         }
 
         public void MoveAndRotate(Vector3 newPosition, float rotation, bool callback = true)
@@ -489,9 +505,11 @@ namespace DynamicMaps.UI.Components
             var labelAlpha = GetLabelAlphaForStatus(status);
 
             Image.color = new Color(Image.color.r, Image.color.g, Image.color.b, imageAlpha);
+            ExtraImage?.color = new Color(ExtraImage.color.r, ExtraImage.color.g, ExtraImage.color.b, imageAlpha);
             Label.color = new Color(Label.color.r, Label.color.g, Label.color.b, labelAlpha);
 
             Image.gameObject.SetActive(imageAlpha > 0f);
+            ExtraImage?.gameObject.SetActive(imageAlpha > 0f);
             Label.gameObject.SetActive(labelAlpha > 0f);
             gameObject.SetActive(labelAlpha > 0f || imageAlpha > 0f);
 

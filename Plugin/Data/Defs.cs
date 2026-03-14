@@ -44,6 +44,7 @@ namespace DynamicMaps.Data
         public Vector3 Position { get; set; }
 
         public Sprite Sprite { get; set; }
+        public Sprite LayeredSprite { get; set; }
         public bool ShowInRaid { get; set; } = true;
         public string Category { get; set; } = "None";
         public Color Color { get; set; } = Color.white;
