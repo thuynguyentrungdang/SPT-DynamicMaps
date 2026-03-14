@@ -90,7 +90,7 @@ namespace DynamicMaps.UI.Components
             Label.text = Label.text;  // try resetting text, since it seems like if outline fails, it doesn't size properly
         }
 
-        public void HandleNewLayerStatus(LayerStatus status)
+        public void HandleNewLayerStatus(LayerStatus status, bool isHover)
         {
             Label.color = new Color(Label.color.r, Label.color.g, Label.color.b, LabelAlphaLayerStatus[status]);
         }

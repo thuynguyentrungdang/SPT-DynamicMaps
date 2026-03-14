@@ -339,15 +339,34 @@ namespace DynamicMaps.UI.Components
 
             ZoomCurrent = zoomNew;
 
-            // scale all map content up by scaling parent
-            RectTransform.DOScale(ZoomCurrent * Vector3.one, updateMainZoom ? 0 : tweenTime);
+            var duration = updateMainZoom ? 0 : tweenTime;
 
-            // inverse scale all map markers and labels
-            // FIXME: does this generate large amounts of garbage?
+            var mapTween = RectTransform.DOScale(ZoomCurrent * Vector3.one, duration);
+
             var things = _markers.Cast<MonoBehaviour>().Concat(_labels);
             foreach (var thing in things)
             {
                 thing.GetRectTransform().DOScale(1 / ZoomCurrent * Vector3.one, tweenTime);
+            }
+
+            UpdateZoneMarkerLayouts();
+
+            if (duration > 0f)
+            {
+                mapTween.OnUpdate(UpdateZoneMarkerLayouts)
+                       .OnComplete(UpdateZoneMarkerLayouts);
+            }
+            else
+            {
+                UpdateZoneMarkerLayouts();
+            }
+        }
+
+        private void UpdateZoneMarkerLayouts()
+        {
+            foreach (var marker in _markers.OfType<MapMarker>())
+            {
+                marker.UpdateZoneAttachmentLayout();
             }
         }
 
@@ -439,11 +458,11 @@ namespace DynamicMaps.UI.Components
             var layer = FindMatchingLayerByCoordinate(bound.Position);
             if (layer is null)
             {
-                bound.HandleNewLayerStatus(LayerStatus.Hidden);
+                bound.HandleNewLayerStatus(LayerStatus.Hidden, false);
                 return;
             }
 
-            bound.HandleNewLayerStatus(layer.Status);
+            bound.HandleNewLayerStatus(layer.Status, false);
         }
 
         private void UpdateLayerStatus()

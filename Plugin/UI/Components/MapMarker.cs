@@ -75,6 +75,7 @@ namespace DynamicMaps.UI.Components
                 }},
             };
 
+        private readonly Vector3[] _tmpCorners = new Vector3[4];
         private static Vector2 _labelSizeMultiplier = new Vector2(2.5f, 2f);
         private static float _markerMinFontSize = 9f;
         private static float _markerMaxFontSize = 13f;
@@ -90,6 +91,9 @@ namespace DynamicMaps.UI.Components
         public RectTransform RectTransform => gameObject.transform as RectTransform;
         public RectTransform ZoneRectTransform { get; protected set; }
         public Image ZoneImage { get; protected set; }
+
+        public RectTransform VisualRoot { get; set; }
+        public Image ConnectorImage { get; set; }
 
         public string AssociatedItemId { get; protected set; } = "";
         public bool IsDynamic { get; protected set; } = false;
@@ -173,7 +177,133 @@ namespace DynamicMaps.UI.Components
 
         private float _initialRotation;
         private bool _hasSetOutline = false;
-        private bool _isInFullReveal = false;
+
+        private Vector2 GetRectCenterInMarkerSpace(RectTransform rt)
+        {
+            var worldCenter = rt.TransformPoint(Vector3.zero);
+            return RectTransform.InverseTransformPoint(worldCenter);
+        }
+
+        private Vector2 GetRectAabbSizeInMarkerSpace(RectTransform rt)
+        {
+            rt.GetWorldCorners(_tmpCorners);
+
+            var min = new Vector2(float.PositiveInfinity, float.PositiveInfinity);
+            var max = new Vector2(float.NegativeInfinity, float.NegativeInfinity);
+
+            for (var i = 0; i < 4; i++)
+            {
+                var p = (Vector2)RectTransform.InverseTransformPoint(_tmpCorners[i]);
+                min = Vector2.Min(min, p);
+                max = Vector2.Max(max, p);
+            }
+
+            return max - min;
+        }
+
+        private static void SetLocal2D(RectTransform rt, Vector2 p)
+        {
+            rt.localPosition = new Vector3(p.x, p.y, rt.localPosition.z);
+        }
+
+        public void UpdateZoneAttachmentLayout(bool allowAutoOffset = true)
+        {
+            if (ZoneRectTransform == null || ZoneImage == null || VisualRoot == null || ConnectorImage == null || Image == null)
+            {
+                ResetZoneAttachmentLayout();
+                return;
+            }
+
+            if (!ZoneImage.gameObject.activeSelf || !Label.gameObject.activeSelf)
+            {
+                ResetZoneAttachmentLayout();
+                return;
+            }
+
+            var zoneCenter = GetRectCenterInMarkerSpace(ZoneRectTransform);
+            var zoneSize = GetRectAabbSizeInMarkerSpace(ZoneRectTransform);
+            var markerSize = GetRectAabbSizeInMarkerSpace(Image.rectTransform);
+
+            var zoneMin = Mathf.Min(zoneSize.x, zoneSize.y);
+            var markerMax = Mathf.Max(markerSize.x, markerSize.y);
+
+            Vector2 targetCenter = Vector2.zero;
+
+            if (allowAutoOffset && zoneMin < markerMax)
+            {
+                const float padding = 10f;
+
+                var offset = zoneSize.x * 0.5f + markerSize.x * 0.5f + padding;
+                targetCenter = zoneCenter + new Vector2(offset, -offset);
+            }
+
+            SetLocal2D(VisualRoot, targetCenter);
+
+            var visualCenter = GetRectCenterInMarkerSpace(Image.rectTransform);
+            var delta = visualCenter - zoneCenter;
+
+            if (delta.sqrMagnitude < 0.001f)
+            {
+                ConnectorImage.gameObject.SetActive(false);
+                return;
+            }
+
+            var connectorRT = ConnectorImage.rectTransform;
+            SetLocal2D(connectorRT, zoneCenter);
+            connectorRT.localRotation = Quaternion.Euler(0f, 0f, Mathf.Atan2(delta.y, delta.x) * Mathf.Rad2Deg);
+            connectorRT.sizeDelta = new Vector2(delta.magnitude, 2f);
+
+            var connectorAlpha = Mathf.Clamp01(Image.color.a * 0.5f);
+            ConnectorImage.color = new Color(
+                ZoneImage.color.r,
+                ZoneImage.color.g,
+                ZoneImage.color.b,
+                connectorAlpha);
+
+            ConnectorImage.gameObject.SetActive(true);
+        }
+
+
+        private float GetImageAlphaForStatus(LayerStatus status)
+        {
+            var alpha = ImageAlphaLayerStatus[status];
+            if (CategoryImageAlphaLayerStatus.ContainsKey(Category))
+            {
+                alpha = CategoryImageAlphaLayerStatus[Category][status];
+            }
+
+            return alpha;
+        }
+
+        private float GetLabelAlphaForStatus(LayerStatus status)
+        {
+            var alpha = LabelAlphaLayerStatus[status];
+            if (CategoryLabelAlphaLayerStatus.ContainsKey(Category))
+            {
+                alpha = CategoryLabelAlphaLayerStatus[Category][status];
+            }
+
+            return alpha;
+        }
+
+        public void ResetZoneAttachmentLayout()
+        {
+            if (VisualRoot != null)
+            {
+                VisualRoot.localPosition = new Vector3(0f, 0f, VisualRoot.localPosition.z);
+            }
+
+            if (ConnectorImage != null)
+            {
+                ConnectorImage.gameObject.SetActive(false);
+
+                var connectorRT = ConnectorImage.rectTransform;
+                connectorRT.localPosition = new Vector3(0f, 0f, connectorRT.localPosition.z);
+                connectorRT.localRotation = Quaternion.identity;
+                connectorRT.sizeDelta = new Vector2(0f, 2f);
+            }
+        }
+
 
         public static MapMarker Create(GameObject parent, GameObject zoneParent, MapMarkerDef def, Vector2 size, float degreesRotation, float scale)
         {
@@ -207,15 +337,9 @@ namespace DynamicMaps.UI.Components
         public static T Create<T>(GameObject parent, string text, string category, string imageRelativePath, Color color,
                                   Vector3 position, Vector2 size, Vector2 pivot, float degreesRotation, float scale,
                                   bool showInRaid = true, Sprite sprite = null)
-                            where T : MapMarker
+            where T : MapMarker
         {
             var go = UIUtils.CreateUIGameObject(parent, $"MapMarker {text}");
-
-            // this is to receive mouse events
-            var fakeImage = go.AddComponent<Image>();
-            fakeImage.color = Color.clear;
-            fakeImage.raycastTarget = true;
-
             var rectTransform = go.GetRectTransform();
             rectTransform.anchoredPosition = position;
             rectTransform.sizeDelta = size;
@@ -230,11 +354,50 @@ namespace DynamicMaps.UI.Components
             marker._initialRotation = degreesRotation;
             marker.ShowInRaid = showInRaid;
 
+            // connector line
+            var connectorGO = UIUtils.CreateUIGameObject(go, "connector");
+            connectorGO.AddComponent<CanvasRenderer>();
+
+            var connectorRT = connectorGO.GetRectTransform();
+            connectorRT.anchorMin = new Vector2(0.5f, 0.5f);
+            connectorRT.anchorMax = new Vector2(0.5f, 0.5f);
+            connectorRT.pivot = new Vector2(0f, 0.5f);
+            connectorRT.anchoredPosition = Vector2.zero;
+            connectorRT.localRotation = Quaternion.identity;
+            connectorRT.localScale = Vector3.one;
+            connectorRT.sizeDelta = new Vector2(0f, 2f);
+
+            marker.ConnectorImage = connectorGO.AddComponent<Image>();
+            marker.ConnectorImage.raycastTarget = false;
+            marker.ConnectorImage.color = new Color(color.r, color.g, color.b, 0.25f);
+            marker.ConnectorImage.gameObject.SetActive(false);
+
+            // visual root that can be offset away from the zone center
+            var visualGO = UIUtils.CreateUIGameObject(go, "visualRoot");
+            visualGO.AddComponent<CanvasRenderer>();
+
+            var visualRT = visualGO.GetRectTransform();
+            visualRT.anchorMin = new Vector2(0.5f, 0.5f);
+            visualRT.anchorMax = new Vector2(0.5f, 0.5f);
+            visualRT.pivot = new Vector2(0.5f, 0.5f);
+            visualRT.anchoredPosition = Vector2.zero;
+            visualRT.localRotation = Quaternion.identity;
+            visualRT.localScale = Vector3.one;
+            visualRT.sizeDelta = size;
+
+            marker.VisualRoot = visualRT;
+
+            // hover target lives with the moved visuals
+            var fakeImage = visualGO.AddComponent<Image>();
+            fakeImage.color = Color.clear;
+            fakeImage.raycastTarget = true;
+
             // image
-            var imageGO = UIUtils.CreateUIGameObject(go, "image");
+            var imageGO = UIUtils.CreateUIGameObject(visualGO, "image");
             imageGO.AddComponent<CanvasRenderer>();
             imageGO.GetRectTransform().sizeDelta = size;
             imageGO.GetRectTransform().pivot = new Vector2(0.5f, 0.5f);
+
             marker.Image = imageGO.AddComponent<Image>();
             marker.Image.raycastTarget = false;
             marker.Image.sprite = sprite is null
@@ -242,17 +405,16 @@ namespace DynamicMaps.UI.Components
                 : sprite;
             marker.Image.type = Image.Type.Simple;
 
-            // var outline = imageGO.AddComponent<Outline>();
-            // outline.effectColor = Color.black;
-            // outline.effectDistance = Vector2.one;
-
             // label
-            var labelGO = UIUtils.CreateUIGameObject(go, "label");
+            var labelGO = UIUtils.CreateUIGameObject(visualGO, "label");
             labelGO.AddComponent<CanvasRenderer>();
-            labelGO.GetRectTransform().anchorMin = new Vector2(0.5f, 0f);
-            labelGO.GetRectTransform().anchorMax = new Vector2(0.5f, 0f);
-            labelGO.GetRectTransform().pivot = new Vector2(0.5f, 1f);
-            labelGO.GetRectTransform().sizeDelta = size * _labelSizeMultiplier;
+
+            var labelRT = labelGO.GetRectTransform();
+            labelRT.anchorMin = new Vector2(0.5f, 0f);
+            labelRT.anchorMax = new Vector2(0.5f, 0f);
+            labelRT.pivot = new Vector2(0.5f, 1f);
+            labelRT.sizeDelta = size * _labelSizeMultiplier;
+
             marker.Label = labelGO.AddComponent<TextMeshProUGUI>();
             marker.Label.alignment = TextAlignmentOptions.Top;
             marker.Label.enableWordWrapping = true;
@@ -270,6 +432,7 @@ namespace DynamicMaps.UI.Components
 
             return marker;
         }
+
 
         protected virtual void OnEnable()
         {
@@ -310,30 +473,17 @@ namespace DynamicMaps.UI.Components
             SetRotation(rotation);
         }
 
-        public void HandleNewLayerStatus(LayerStatus status)
+        public void HandleNewLayerStatus(LayerStatus status, bool isHover)
         {
             if (!ShowInRaid && GameUtils.IsInRaid())
             {
                 gameObject.SetActive(false);
+                ResetZoneAttachmentLayout();
                 return;
             }
 
-            if (_isInFullReveal)
-            {
-                status = LayerStatus.FullReveal;
-            }
-
-            var imageAlpha = ImageAlphaLayerStatus[status];
-            var labelAlpha = LabelAlphaLayerStatus[status];
-
-            if (CategoryImageAlphaLayerStatus.ContainsKey(Category))
-            {
-                imageAlpha = CategoryImageAlphaLayerStatus[Category][status];
-            }
-            if (CategoryLabelAlphaLayerStatus.ContainsKey(Category))
-            {
-                labelAlpha = CategoryLabelAlphaLayerStatus[Category][status];
-            }
+            var imageAlpha = GetImageAlphaForStatus(status);
+            var labelAlpha = GetLabelAlphaForStatus(status);
 
             Image.color = new Color(Image.color.r, Image.color.g, Image.color.b, imageAlpha);
             Label.color = new Color(Label.color.r, Label.color.g, Label.color.b, labelAlpha);
@@ -348,20 +498,21 @@ namespace DynamicMaps.UI.Components
                 var zoneAlpha = labelAlpha * 0.15f;
                 ZoneImage.color = new Color(ZoneImage.color.r, ZoneImage.color.g, ZoneImage.color.b, zoneAlpha);
             }
+
+            if (!isHover)
+                UpdateZoneAttachmentLayout();
         }
 
         public void OnPointerEnter(PointerEventData eventData)
         {
             TrySetOutlineAndResize();
 
-            _isInFullReveal = true;
             transform.SetAsLastSibling();
-            HandleNewLayerStatus(LayerStatus.FullReveal);
+            HandleNewLayerStatus(LayerStatus.FullReveal, true);
         }
 
         public void OnPointerExit(PointerEventData eventData)
         {
-            _isInFullReveal = false;
             OnPositionChanged?.Invoke(this);
         }
 
