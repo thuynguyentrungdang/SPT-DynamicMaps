@@ -308,7 +308,8 @@ namespace DynamicMaps.UI.Components
         public static MapMarker Create(GameObject parent, GameObject zoneParent, MapMarkerDef def, Vector2 size, float degreesRotation, float scale)
         {
             var mapMarker = Create<MapMarker>(parent, def.Text, def.Category, def.ImagePath, def.Color, def.Position, size,
-                                              def.Pivot, degreesRotation, scale, def.ShowInRaid, def.Sprite);
+                                              def.Pivot, degreesRotation, scale, def.ShowInRaid, def.Sprite,
+                                              (def.Category == "Quest" ? new Vector2(0.5f, 0f) : null));
             mapMarker.AssociatedItemId = def.AssociatedItemId;
 
             if (def.ZoneTrigger != null)
@@ -336,7 +337,7 @@ namespace DynamicMaps.UI.Components
 
         public static T Create<T>(GameObject parent, string text, string category, string imageRelativePath, Color color,
                                   Vector3 position, Vector2 size, Vector2 pivot, float degreesRotation, float scale,
-                                  bool showInRaid = true, Sprite sprite = null)
+                                  bool showInRaid = true, Sprite sprite = null, Vector2? markerPivot = null)
             where T : MapMarker
         {
             var go = UIUtils.CreateUIGameObject(parent, $"MapMarker {text}");
@@ -396,7 +397,7 @@ namespace DynamicMaps.UI.Components
             var imageGO = UIUtils.CreateUIGameObject(visualGO, "image");
             imageGO.AddComponent<CanvasRenderer>();
             imageGO.GetRectTransform().sizeDelta = size;
-            imageGO.GetRectTransform().pivot = new Vector2(0.5f, 0.5f);
+            imageGO.GetRectTransform().pivot = markerPivot.HasValue ? markerPivot.Value : new Vector2(0.5f, 0.5f);
 
             marker.Image = imageGO.AddComponent<Image>();
             marker.Image.raycastTarget = false;
@@ -413,6 +414,8 @@ namespace DynamicMaps.UI.Components
             labelRT.anchorMin = new Vector2(0.5f, 0f);
             labelRT.anchorMax = new Vector2(0.5f, 0f);
             labelRT.pivot = new Vector2(0.5f, 1f);
+            if (markerPivot.HasValue)
+                labelRT.anchoredPosition = new Vector2(0f, size.y * (0.5f - markerPivot.Value.y));
             labelRT.sizeDelta = size * _labelSizeMultiplier;
 
             marker.Label = labelGO.AddComponent<TextMeshProUGUI>();
