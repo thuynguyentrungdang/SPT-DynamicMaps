@@ -65,10 +65,5 @@ namespace DynamicMaps.Utils
 
             return 0f;
         }
-
-        public static bool ApproxEquals(float first, float second)
-        {
-            return Mathf.Abs(first - second) < float.Epsilon;
-        }
     }
 }

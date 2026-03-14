@@ -56,4 +56,16 @@ internal static class ExtensionMethods
 
         return Vector2.zero;
     }
+
+    public static bool ApproxEquals(this float first, float second, float delta = float.Epsilon)
+    {
+        return Mathf.Abs(first - second) < delta;
+    }
+
+    public static bool ApproxEquals(this Vector3 first, Vector3 second, float delta = float.Epsilon)
+    {
+        return ApproxEquals(first.x, second.x, delta)
+            && ApproxEquals(first.y, second.y, delta)
+            && ApproxEquals(first.z, second.z, delta);
+    }
 }

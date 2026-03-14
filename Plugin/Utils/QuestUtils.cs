@@ -120,17 +120,15 @@ namespace DynamicMaps.Utils
                 var questName = quest.Template.NameLocaleKey.BSGLocalized();
                 var conditionDescription = condition.id.BSGLocalized();
 
-                var positions = GetPositionsForCondition(condition, questName, conditionDescription);
-                foreach (var position in positions)
+                var conditionData = GetConditionData(condition, questName, conditionDescription);
+                foreach (var data in conditionData)
                 {
                     var isDuplicate = false;
 
                     // check against previously created markers for duplicate position
                     foreach (var marker in markers)
                     {
-                        if (MathUtils.ApproxEquals(marker.Position.x, position.x)
-                         && MathUtils.ApproxEquals(marker.Position.y, position.y)
-                         && MathUtils.ApproxEquals(marker.Position.z, position.z))
+                        if (marker.Position.ApproxEquals(data.Position))
                         {
                             isDuplicate = true;
                             break;
@@ -142,14 +140,24 @@ namespace DynamicMaps.Utils
                         continue;
                     }
 
-                    markers.Add(CreateQuestMapMarkerDef(position, questName, conditionDescription));
+                    TriggerWithIdAbstraction triggerWithIdAbstraction = null;
+                    if (data.Condition is ConditionInZone or ConditionZone or ConditionVisitPlace or ConditionLaunchFlare)
+                    {
+                        Plugin.Log.LogInfo($"Trying to find trigger for condition {conditionDescription} at position {data.Position} in zone {data.ZoneId}");
+                        triggerWithIdAbstraction = TriggersWithIds.FirstOrDefault(f => f.Id == data.ZoneId
+                            && (TriggersWithIds.Count(z => z.Id == f.Id) == 1 || MathUtils.ConvertToMapPosition(f.Position).ApproxEquals(data.Position, 1)));
+                        if (triggerWithIdAbstraction != null)
+                            Plugin.Log.LogInfo($"Found trigger {triggerWithIdAbstraction?.Id} at position {triggerWithIdAbstraction?.Position} for condition {conditionDescription}");
+                    }
+
+                    markers.Add(CreateQuestMapMarkerDef(data.Position, questName, conditionDescription, triggerWithIdAbstraction));
                 }
             }
 
             return markers;
         }
 
-        private static IEnumerable<Vector3> GetPositionsForCondition(Condition condition, string questName,
+        private static IEnumerable<(Condition Condition, Vector3 Position, string ZoneId)> GetConditionData(Condition condition, string questName,
                                                                     string conditionDescription)
         {
             switch (condition)
@@ -158,7 +166,7 @@ namespace DynamicMaps.Utils
                     {
                         foreach (var position in GetPositionsForZoneId(zoneCondition.zoneId, questName, conditionDescription))
                         {
-                            yield return position;
+                            yield return (condition, position, zoneCondition.zoneId);
                         }
                         break;
                     }
@@ -166,7 +174,7 @@ namespace DynamicMaps.Utils
                     {
                         foreach (var position in GetPositionsForZoneId(flareCondition.zoneID, questName, conditionDescription))
                         {
-                            yield return position;
+                            yield return (condition, position, flareCondition.zoneID);
                         }
                         break;
                     }
@@ -174,7 +182,7 @@ namespace DynamicMaps.Utils
                     {
                         foreach (var position in GetPositionsForZoneId(place.target, questName, conditionDescription))
                         {
-                            yield return position;
+                            yield return (condition, position, place.target);
                         }
                         break;
                     }
@@ -184,7 +192,7 @@ namespace DynamicMaps.Utils
                         {
                             foreach (var position in GetPositionsForZoneId(zoneId, questName, conditionDescription))
                             {
-                                yield return position;
+                                yield return (condition, position, zoneId);
                             }
                         }
                         break;
@@ -193,7 +201,7 @@ namespace DynamicMaps.Utils
                     {
                         foreach (var position in GetPositionsForQuestItems(findItemCondition.target, questName, conditionDescription))
                         {
-                            yield return position;
+                            yield return (condition, position, null);
                         }
                         break;
                     }
@@ -211,7 +219,7 @@ namespace DynamicMaps.Utils
 
                             if (specifiedExit != null)
                             {
-                                yield return MathUtils.ConvertToMapPosition(specifiedExit.transform);
+                                yield return (condition, MathUtils.ConvertToMapPosition(specifiedExit.transform), null);
                             }
 
                             break;
@@ -233,13 +241,13 @@ namespace DynamicMaps.Utils
             }
         }
 
-        private static IEnumerable<Vector3> GetPositionsForConditionCreator(ConditionCounterCreator conditionCreator,
+        private static IEnumerable<(Condition, Vector3, string)> GetPositionsForConditionCreator(ConditionCounterCreator conditionCreator,
                                                                             string questName, string conditionDescription)
         {
             var counter = conditionCreator.TemplateConditions;
             foreach (var condition in counter.Conditions)
             {
-                foreach (var position in GetPositionsForCondition(condition, questName, conditionDescription))
+                foreach (var position in GetConditionData(condition, questName, conditionDescription))
                 {
                     yield return position;
                 }
@@ -364,7 +372,7 @@ namespace DynamicMaps.Utils
             return triggerWithIds.Where(t => t.Id == zoneId);
         }
 
-        private static MapMarkerDef CreateQuestMapMarkerDef(Vector3 position, string questName, string conditionDescription)
+        private static MapMarkerDef CreateQuestMapMarkerDef(Vector3 position, string questName, string conditionDescription, TriggerWithIdAbstraction triggerWithIdAbstraction)
         {
             return new MapMarkerDef
             {
@@ -373,7 +381,8 @@ namespace DynamicMaps.Utils
                 ImagePath = _questImagePath,
                 Position = position,
                 Pivot = _questPivot,
-                Text = questName
+                Text = questName,
+                ZoneTrigger = triggerWithIdAbstraction
             };
         }
     }

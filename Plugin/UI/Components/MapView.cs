@@ -33,10 +33,10 @@ namespace DynamicMaps.UI.Components
 
         public float ZoomMain { get; set; } = Settings.ZoomMainMap.Value;
         public float ZoomMini { get; set; } = Settings.ZoomMiniMap.Value;
-        
+
         public float ZoomCurrent { get; private set; }  // set when map loaded
         public Vector2 MainMapPos { get; private set; } = Vector2.zero;
-        
+
         private Vector2 _immediateMapAnchor = Vector2.zero;
 
         private List<MapMarker> _markers = new List<MapMarker>();
@@ -83,7 +83,12 @@ namespace DynamicMaps.UI.Components
 
         public MapMarker AddMapMarker(MapMarkerDef markerDef)
         {
-            var marker = MapMarker.Create(MapMarkerContainer, markerDef, _markerSize, -CoordinateRotation, 1f/ZoomCurrent);
+            MapMarker marker;
+            if (markerDef.Category == "Quest")
+                marker = MapMarker.CreateQuestMarker(MapMarkerContainer, markerDef, _markerSize, -CoordinateRotation, 1f / ZoomCurrent);
+            else
+                marker = MapMarker.Create(MapMarkerContainer, markerDef, _markerSize, -CoordinateRotation, 1f / ZoomCurrent);
+
             AddMapMarker(marker);
             return marker;
         }
@@ -92,7 +97,7 @@ namespace DynamicMaps.UI.Components
                                                      string imagePath, Vector2 size)
         {
             var marker = TransformMapMarker.Create(followingTransform, MapMarkerContainer, imagePath, color, name, category,
-                                                   size, -CoordinateRotation, 1f/ZoomCurrent);
+                                                   size, -CoordinateRotation, 1f / ZoomCurrent);
             AddMapMarker(marker);
             return marker;
         }
@@ -100,7 +105,7 @@ namespace DynamicMaps.UI.Components
         public PlayerMapMarker AddPlayerMarker(IPlayer player, string category, Color color, string imagePath)
         {
             var marker = PlayerMapMarker.Create(player, MapMarkerContainer, imagePath, color, category,
-                                                _markerSize, -CoordinateRotation, 1f/ZoomCurrent);
+                                                _markerSize, -CoordinateRotation, 1f / ZoomCurrent);
             AddMapMarker(marker);
             return marker;
         }
@@ -152,7 +157,7 @@ namespace DynamicMaps.UI.Components
 
         public void AddMapLabel(MapLabelDef labelDef)
         {
-            var label = MapLabel.Create(MapLabelsContainer, labelDef, -CoordinateRotation, 1f/ZoomCurrent);
+            var label = MapLabel.Create(MapLabelsContainer, labelDef, -CoordinateRotation, 1f / ZoomCurrent);
 
             UpdateLayerBound(label);
 
@@ -332,9 +337,9 @@ namespace DynamicMaps.UI.Components
                 ZoomMini = zoomNew;
                 Settings.ZoomMiniMap.Value = zoomNew;
             }
-            
+
             ZoomCurrent = zoomNew;
-            
+
             // scale all map content up by scaling parent
             RectTransform.DOScale(ZoomCurrent * Vector3.one, updateMainZoom ? 0 : tweenTime);
 
@@ -357,7 +362,7 @@ namespace DynamicMaps.UI.Components
             ShiftMap(-rotatedPoint * actualDelta, zoomTweenTime, false);
             SetMapZoom(zoomNew, zoomTweenTime);
         }
-        
+
         public void IncrementalZoomIntoMiniMap(float zoomDelta, Vector2 rectPoint, float zoomTweenTime)
         {
             var zoomNew = Mathf.Clamp(ZoomMini + zoomDelta, ZoomMin, ZoomMax);
@@ -388,7 +393,7 @@ namespace DynamicMaps.UI.Components
             {
                 MainMapPos = _immediateMapAnchor;
             }
-            
+
             RectTransform.DOAnchorPos(_immediateMapAnchor, tweenTime);
         }
 
@@ -397,7 +402,7 @@ namespace DynamicMaps.UI.Components
             MainMapPos = pos;
             RectTransform.DOAnchorPos(pos, tweenTime);
         }
-        
+
         public void ShiftMapToCoordinate(Vector2 coord, float tweenTime, bool isMini)
         {
             var rotatedCoord = MathUtils.GetRotatedVector2(coord, CoordinateRotation);
@@ -416,7 +421,7 @@ namespace DynamicMaps.UI.Components
         {
             var smallestDimension = Mathf.Min(CurrentMapDef.Bounds.Max.x - CurrentMapDef.Bounds.Min.x,
                                               CurrentMapDef.Bounds.Max.y - CurrentMapDef.Bounds.Min.y);
-            
+
             var incrementSize = smallestDimension * ZoomCurrent * incrementScale;
             ShiftMap(shiftIncrements * incrementSize, 0, isMini);
         }
@@ -433,9 +438,9 @@ namespace DynamicMaps.UI.Components
         private void UpdateLayerBound(ILayerBound bound)
         {
             var layer = FindMatchingLayerByCoordinate(bound.Position);
-            
+
             if (layer is null) return;
-            
+
             bound.HandleNewLayerStatus(layer.Status);
         }
 

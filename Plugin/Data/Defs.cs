@@ -49,6 +49,7 @@ namespace DynamicMaps.Data
         public Color Color { get; set; } = Color.white;
         public Vector2 Pivot { get; set; } = new Vector2(0.5f, 0.5f);
         public string AssociatedItemId { get; set; } = "";
+        public TriggerWithIdAbstraction ZoneTrigger { get; set; } = null;
     }
 
     public class MapLabelDef

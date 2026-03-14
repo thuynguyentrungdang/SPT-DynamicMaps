@@ -65,10 +65,7 @@ namespace DynamicMaps.UI.Components
             var mapRotation = MathUtils.ConvertToMapRotation(FollowingTransform, RotationAxis);
 
             // check if in exactly the same place and skip updating if it is
-            if (MathUtils.ApproxEquals(Position.x, mapPosition.x)
-             && MathUtils.ApproxEquals(Position.y, mapPosition.y)
-             && MathUtils.ApproxEquals(Position.z, mapPosition.z)
-             && MathUtils.ApproxEquals(Rotation, mapRotation))
+            if (Position.ApproxEquals(mapPosition) && Rotation.ApproxEquals(mapRotation))
             {
                 return;
             }
