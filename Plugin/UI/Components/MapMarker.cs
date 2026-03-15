@@ -506,6 +506,7 @@ namespace DynamicMaps.UI.Components
             marker.Label.fontSizeMin = _markerMinFontSize;
             marker.Label.fontSizeMax = _markerMaxFontSize;
             marker.Label.text = marker.Text;
+            marker.Label.raycastTarget = false;
 
             marker._hasSetOutline = UIUtils.TrySetTMPOutline(marker.Label);
 
@@ -558,7 +559,7 @@ namespace DynamicMaps.UI.Components
             SetRotation(rotation);
         }
 
-        public void HandleNewLayerStatus(LayerStatus status, bool isHover)
+        public void HandleNewLayerStatus(LayerStatus status)
         {
             if (!ShowInRaid && GameUtils.IsInRaid())
             {
@@ -586,22 +587,26 @@ namespace DynamicMaps.UI.Components
                 ZoneImage.color = new Color(ZoneImage.color.r, ZoneImage.color.g, ZoneImage.color.b, zoneAlpha);
             }
 
-            if (!isHover)
+            if (!_isHovered)
                 UpdateZoneAttachmentLayout();
         }
 
         public void OnPointerEnter(PointerEventData eventData)
         {
+            _isHovered = true;
             TrySetOutlineAndResize();
 
             transform.SetAsLastSibling();
-            HandleNewLayerStatus(LayerStatus.FullReveal, true);
+            HandleNewLayerStatus(LayerStatus.FullReveal);
         }
 
         public void OnPointerExit(PointerEventData eventData)
         {
             OnPositionChanged?.Invoke(this);
+            _isHovered = false;
         }
+
+        private bool _isHovered = false;
 
         private void TrySetOutlineAndResize()
         {

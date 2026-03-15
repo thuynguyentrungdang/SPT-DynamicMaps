@@ -17,7 +17,7 @@ namespace DynamicMaps.UI.Components
     public interface ILayerBound
     {
         Vector3 Position { get; set; }
-        void HandleNewLayerStatus(LayerStatus status, bool isHover);
+        void HandleNewLayerStatus(LayerStatus status);
     }
 
     public class MapLayer : MonoBehaviour

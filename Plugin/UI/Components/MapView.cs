@@ -319,7 +319,6 @@ namespace DynamicMaps.UI.Components
         {
             zoomNew = Mathf.Clamp(zoomNew, ZoomMin, ZoomMax);
 
-            // already there
             if (zoomNew == ZoomCurrent)
             {
                 return;
@@ -339,14 +338,23 @@ namespace DynamicMaps.UI.Components
 
             ZoomCurrent = zoomNew;
 
-            var duration = updateMainZoom ? 0 : tweenTime;
+            var duration = tweenTime; // no special-case snap for main map
 
-            var mapTween = RectTransform.DOScale(ZoomCurrent * Vector3.one, duration);
-
-            var things = _markers.Cast<MonoBehaviour>().Concat(_labels);
+            DOTween.Kill(RectTransform);
+            var things = _markers.Cast<MonoBehaviour>().Concat(_labels).ToList();
             foreach (var thing in things)
             {
-                thing.GetRectTransform().DOScale(1 / ZoomCurrent * Vector3.one, tweenTime);
+                DOTween.Kill(thing.GetRectTransform());
+            }
+
+            var mapTween = RectTransform.DOScale(ZoomCurrent * Vector3.one, duration)
+                .SetEase(Ease.OutCubic);
+
+            foreach (var thing in things)
+            {
+                thing.GetRectTransform()
+                    .DOScale(1f / ZoomCurrent * Vector3.one, duration)
+                    .SetEase(Ease.OutCubic);
             }
 
             UpdateZoneMarkerLayouts();
@@ -355,10 +363,6 @@ namespace DynamicMaps.UI.Components
             {
                 mapTween.OnUpdate(UpdateZoneMarkerLayouts)
                        .OnComplete(UpdateZoneMarkerLayouts);
-            }
-            else
-            {
-                UpdateZoneMarkerLayouts();
             }
         }
 
@@ -370,15 +374,48 @@ namespace DynamicMaps.UI.Components
             }
         }
 
-        public void IncrementalZoomInto(float zoomDelta, Vector2 rectPoint, float zoomTweenTime)
+        private Tween _zoomTween;
+        private float _zoomTargetMain;
+
+        public void IncrementalZoomInto(float wheelSteps, Vector2 rectPoint, float zoomTweenTime)
         {
-            var zoomNew = Mathf.Clamp(ZoomMain + zoomDelta, ZoomMin, ZoomMax);
-            var actualDelta = zoomNew - ZoomMain;
+            const float zoomPerStep = 1.12f;
+
+            if (_zoomTargetMain <= 0f)
+            {
+                _zoomTargetMain = ZoomMain;
+            }
+
+            _zoomTargetMain = Mathf.Clamp(
+                _zoomTargetMain * Mathf.Pow(zoomPerStep, wheelSteps),
+                ZoomMin,
+                ZoomMax);
+
+            _zoomTween?.Kill();
+
+            var startZoom = ZoomCurrent;
+            var startAnchor = RectTransform.anchoredPosition;
             var rotatedPoint = MathUtils.GetRotatedVector2(rectPoint, CoordinateRotation);
 
-            // have to shift first, so that the tween is started in the shift first
-            ShiftMap(-rotatedPoint * actualDelta, zoomTweenTime, false);
-            SetMapZoom(zoomNew, zoomTweenTime);
+            _zoomTween = DOVirtual.Float(startZoom, _zoomTargetMain, zoomTweenTime, z =>
+            {
+                var ratio = z / startZoom;
+
+                ZoomCurrent = z;
+                ZoomMain = z;
+                Settings.ZoomMainMap.Value = z;
+
+                RectTransform.localScale = z * Vector3.one;
+
+                foreach (var thing in _markers.Cast<MonoBehaviour>().Concat(_labels))
+                {
+                    thing.GetRectTransform().localScale = (1f / z) * Vector3.one;
+                }
+
+                RectTransform.anchoredPosition = startAnchor - rotatedPoint * (z - startZoom);
+
+                UpdateZoneMarkerLayouts();
+            }).SetEase(Ease.OutCubic);
         }
 
         public void IncrementalZoomIntoMiniMap(float zoomDelta, Vector2 rectPoint, float zoomTweenTime)
@@ -458,11 +495,11 @@ namespace DynamicMaps.UI.Components
             var layer = FindMatchingLayerByCoordinate(bound.Position);
             if (layer is null)
             {
-                bound.HandleNewLayerStatus(LayerStatus.Hidden, false);
+                bound.HandleNewLayerStatus(LayerStatus.Hidden);
                 return;
             }
 
-            bound.HandleNewLayerStatus(layer.Status, false);
+            bound.HandleNewLayerStatus(layer.Status);
         }
 
         private void UpdateLayerStatus()
