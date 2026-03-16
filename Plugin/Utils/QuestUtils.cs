@@ -5,6 +5,7 @@ using EFT;
 using EFT.Interactive;
 using EFT.Quests;
 using HarmonyLib;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -349,51 +350,61 @@ namespace DynamicMaps.Utils
 
         private static IEnumerable<ConditionWrapper> GetPositionsForConditionCreator(ConditionCounterCreator conditionCreator)
         {
-            Sprite icon = null;
-            Sprite layeredIcon = null;
-
-            var counter = conditionCreator.TemplateConditions;
-            var killCondition = counter.Conditions.FirstOrDefault(c => c is ConditionKills) as ConditionKills;
-            if (killCondition is not null)
+            List<ConditionWrapper> result = [];
+            try
             {
-                // target Any == any == kill icon
-                // target AnyPmc == pmc == kill pmc icon
-                // target Usec == usec == kill usec icon
-                // Target Bear == bear == kill bear icon
-                // target savage + savageRole boss|follower == boss icon
-                // target savage + savageRole empty == scav icon
-                // target savage + savageRole exUsec == rogues
-                // target savage + savageRole marksman == snipers
-                // target savage + savageRole arenaFighterEvent == bloodhounds // raiders?
-                // target savage + savageRole pmcBot == raiders?
-                // target savage + savageRole sectant == cultists
+                Sprite icon = null;
+                Sprite layeredIcon = null;
 
-                icon = TextureUtils.GetOrLoadCachedSprite("Markers/kill_any.png");
-
-                if (string.Equals(killCondition.target, "anypmc", System.StringComparison.OrdinalIgnoreCase))
-                    layeredIcon = TextureUtils.GetOrLoadCachedSprite("Markers/kill_pmc.png");
-                else if (string.Equals(killCondition.target, "usec", System.StringComparison.OrdinalIgnoreCase))
-                    layeredIcon = TextureUtils.GetOrLoadCachedSprite("Markers/kill_usec.png");
-                else if (string.Equals(killCondition.target, "bear", System.StringComparison.OrdinalIgnoreCase))
-                    layeredIcon = TextureUtils.GetOrLoadCachedSprite("Markers/kill_bear.png");
-                else if (string.Equals(killCondition.target, "savage", System.StringComparison.OrdinalIgnoreCase))
+                var counter = conditionCreator.TemplateConditions;
+                var killCondition = (counter?.Conditions ?? []).FirstOrDefault(c => c is ConditionKills) as ConditionKills;
+                if (killCondition is not null)
                 {
-                    if (killCondition.savageRole.Length == 0)
-                        layeredIcon = TextureUtils.GetOrLoadCachedSprite("Markers/kill_scav.png");
-                    else if (killCondition.savageRole.Any(r => r.StartsWith("boss", System.StringComparison.OrdinalIgnoreCase) || r.StartsWith("follower", System.StringComparison.OrdinalIgnoreCase)))
-                        layeredIcon = TextureUtils.GetOrLoadCachedSprite("Markers/kill_boss.png");
-                    else
-                        layeredIcon = TextureUtils.GetOrLoadCachedSprite("Markers/kill_special.png");
+                    // target Any == any == kill icon
+                    // target AnyPmc == pmc == kill pmc icon
+                    // target Usec == usec == kill usec icon
+                    // Target Bear == bear == kill bear icon
+                    // target savage + savageRole boss|follower == boss icon
+                    // target savage + savageRole empty == scav icon
+                    // target savage + savageRole exUsec == rogues
+                    // target savage + savageRole marksman == snipers
+                    // target savage + savageRole arenaFighterEvent == bloodhounds // raiders?
+                    // target savage + savageRole pmcBot == raiders?
+                    // target savage + savageRole sectant == cultists
+
+                    icon = TextureUtils.GetOrLoadCachedSprite("Markers/kill_any.png");
+
+                    if (string.Equals(killCondition.target, "anypmc", System.StringComparison.OrdinalIgnoreCase))
+                        layeredIcon = TextureUtils.GetOrLoadCachedSprite("Markers/kill_pmc.png");
+                    else if (string.Equals(killCondition.target, "usec", System.StringComparison.OrdinalIgnoreCase))
+                        layeredIcon = TextureUtils.GetOrLoadCachedSprite("Markers/kill_usec.png");
+                    else if (string.Equals(killCondition.target, "bear", System.StringComparison.OrdinalIgnoreCase))
+                        layeredIcon = TextureUtils.GetOrLoadCachedSprite("Markers/kill_bear.png");
+                    else if (string.Equals(killCondition.target, "savage", System.StringComparison.OrdinalIgnoreCase))
+                    {
+                        if (killCondition.savageRole.Length == 0)
+                            layeredIcon = TextureUtils.GetOrLoadCachedSprite("Markers/kill_scav.png");
+                        else if (killCondition.savageRole.Any(r => r.StartsWith("boss", System.StringComparison.OrdinalIgnoreCase) || r.StartsWith("follower", System.StringComparison.OrdinalIgnoreCase)))
+                            layeredIcon = TextureUtils.GetOrLoadCachedSprite("Markers/kill_boss.png");
+                        else
+                            layeredIcon = TextureUtils.GetOrLoadCachedSprite("Markers/kill_special.png");
+                    }
+                }
+                foreach (var condition in counter?.Conditions ?? [])
+                {
+                    foreach (var position in GetConditionData(condition))
+                    {
+                        position?.SetIcons(icon, layeredIcon);
+                        result.Add(position);
+                    }
                 }
             }
-            foreach (var condition in counter.Conditions)
+            catch (Exception ex)
             {
-                foreach (var position in GetConditionData(condition))
-                {
-                    position.SetIcons(icon, layeredIcon);
-                    yield return position;
-                }
+                Plugin.Log.LogWarning(ex.ToString());
             }
+
+            return result;
         }
 
         private static IEnumerable<Vector3> GetPositionsForQuestItems(IEnumerable<string> questItemIds)
