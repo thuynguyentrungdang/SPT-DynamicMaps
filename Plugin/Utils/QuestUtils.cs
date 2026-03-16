@@ -21,11 +21,10 @@ namespace DynamicMaps.Utils
         private const string _questCategory = "Quest";
 
         private const string _questImagePath = "Markers/quest.png";
-        private static Dictionary<string, Task<Sprite>> _asyncTraderIcons = [];
+        private static readonly Dictionary<string, Task<Sprite>> _asyncTraderIcons = [];
         private static Color _questColor = Color.green;
         private static List<LootItemAbstraction> _questItems;
-        private static Vector2 _questPivot = new Vector2(0.5f, 0f);
-        //
+        private static Vector2 _questPivot = new(0.5f, 0f);
 
         private static List<TriggerWithIdAbstraction> _triggersWithIds;
 
@@ -67,7 +66,7 @@ namespace DynamicMaps.Utils
             return markers;
         }
 
-        internal static IEnumerable<MapMarkerDef> GetMarkerDefsForQuest(AbstractQuestControllerClass questController, QuestDataClass quest)
+        private static IEnumerable<MapMarkerDef> GetMarkerDefsForQuest(AbstractQuestControllerClass questController, QuestDataClass quest)
         {
             var markers = new List<MapMarkerDef>();
             if (!_asyncTraderIcons.TryGetValue(quest.Template.TraderId, out var traderAvatar))
@@ -200,7 +199,7 @@ namespace DynamicMaps.Utils
                                 else if (targetItemId == "63a0b2eabea67a6d93009e52") // radio repeater
                                     icon = TextureUtils.GetOrLoadCachedSprite("Markers/radiorepeater.png"); // todo: make/find icon for this
                                 else if (targetItemId == "5447e0e74bdc2d3c308b4567") // signaljammer
-                                    icon = TextureUtils.GetOrLoadCachedSprite("Markers/signaljammer.png"); // todo: make/find icon for this
+                                    icon = TextureUtils.GetOrLoadCachedSprite("Markers/signaljammer.png");
                             }
 
                             yield return new(condition, position, zoneCondition.zoneId, icon, layeredIcon);
@@ -209,6 +208,7 @@ namespace DynamicMaps.Utils
                     }
                 case ConditionLaunchFlare flareCondition:
                     {
+                        icon = TextureUtils.GetOrLoadCachedSprite("Markers/flare.png");
                         foreach (var position in GetPositionsForZoneId(flareCondition.zoneID))
                         {
                             yield return new(condition, position, flareCondition.zoneID, null, null);
