@@ -63,8 +63,8 @@ namespace DynamicMaps.UI.Components
 
             MapLayerContainer.transform.SetAsFirstSibling();
             MapZoneContainer.transform.SetSiblingIndex(1);
-            MapMarkerContainer.transform.SetSiblingIndex(2);
-            MapLabelsContainer.transform.SetAsLastSibling();
+            MapLabelsContainer.transform.SetSiblingIndex(2);
+            MapMarkerContainer.transform.SetAsLastSibling();
         }
 
         public void AddMapMarker(MapMarker marker)

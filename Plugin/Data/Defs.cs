@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Threading.Tasks;
 using Newtonsoft.Json;
 using UnityEngine;
 
@@ -51,6 +52,7 @@ namespace DynamicMaps.Data
         public Vector2 Pivot { get; set; } = new Vector2(0.5f, 0.5f);
         public string AssociatedItemId { get; set; } = "";
         public TriggerWithIdAbstraction ZoneTrigger { get; set; } = null;
+        public Task<Sprite> LabelSprite { get; internal set; }
     }
 
     public class MapLabelDef

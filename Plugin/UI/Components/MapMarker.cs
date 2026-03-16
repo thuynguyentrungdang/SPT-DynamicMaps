@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 using DynamicMaps.Data;
 using DynamicMaps.Utils;
 using TMPro;
@@ -88,7 +89,8 @@ namespace DynamicMaps.UI.Components
 
         public Image ArrowImage { get; protected set; }
         public Image Image { get; protected set; }
-        public Image ExtraImage { get; protected set; }
+        public Image LayeredImage { get; protected set; }
+        public Image LabelImage { get; protected set; }
         public TextMeshProUGUI Label { get; protected set; }
         public RectTransform RectTransform => gameObject.transform as RectTransform;
         public RectTransform ZoneRectTransform { get; protected set; }
@@ -356,8 +358,7 @@ namespace DynamicMaps.UI.Components
         public static MapMarker Create(GameObject parent, GameObject zoneParent, MapMarkerDef def, Vector2 size, float degreesRotation, float scale)
         {
             var mapMarker = Create<MapMarker>(parent, def.Text, def.Category, def.ImagePath, def.Color, def.Position, size,
-                                              def.Pivot, degreesRotation, scale, def.ShowInRaid, def.Sprite, def.LayeredSprite,
-                                              (def.Category == "Quest" && def.Sprite == null ? new Vector2(0.5f, 0f) : null));
+                                              def.Pivot, degreesRotation, scale, def.ShowInRaid, def.Sprite, def.LayeredSprite, def.LabelSprite);
 
             mapMarker.AssociatedItemId = def.AssociatedItemId;
 
@@ -386,7 +387,7 @@ namespace DynamicMaps.UI.Components
 
         public static T Create<T>(GameObject parent, string text, string category, string imageRelativePath, Color color,
                                   Vector3 position, Vector2 size, Vector2 pivot, float degreesRotation, float scale,
-                                  bool showInRaid = true, Sprite sprite = null, Sprite layeredSprite = null, Vector2? markerPivot = null)
+                                  bool showInRaid = true, Sprite sprite = null, Sprite layeredSprite = null, Task<Sprite> labelSpriteTask = null)
             where T : MapMarker
         {
             var go = UIUtils.CreateUIGameObject(parent, $"MapMarker {text}");
@@ -467,7 +468,7 @@ namespace DynamicMaps.UI.Components
             var imageGO = UIUtils.CreateUIGameObject(visualGO, "image");
             imageGO.AddComponent<CanvasRenderer>();
             imageGO.GetRectTransform().sizeDelta = size;
-            imageGO.GetRectTransform().pivot = markerPivot.HasValue ? markerPivot.Value : new Vector2(0.5f, 0.5f);
+            imageGO.GetRectTransform().pivot = new Vector2(0.5f, 0.5f);
 
             marker.Image = imageGO.AddComponent<Image>();
             marker.Image.raycastTarget = false;
@@ -481,13 +482,13 @@ namespace DynamicMaps.UI.Components
                 var layeredImageGO = UIUtils.CreateUIGameObject(visualGO, "image");
                 layeredImageGO.AddComponent<CanvasRenderer>();
                 layeredImageGO.GetRectTransform().sizeDelta = size;
-                layeredImageGO.GetRectTransform().pivot = markerPivot.HasValue ? markerPivot.Value : new Vector2(0.5f, 0.5f);
+                layeredImageGO.GetRectTransform().pivot = new Vector2(0.5f, 0.5f);
 
-                marker.ExtraImage = layeredImageGO.AddComponent<Image>();
-                marker.ExtraImage.raycastTarget = false;
-                marker.ExtraImage.type = Image.Type.Simple;
-                marker.ExtraImage.sprite = layeredSprite;
-                marker.ExtraImage.color = marker.ExtraImage.color with { a = color.a };
+                marker.LayeredImage = layeredImageGO.AddComponent<Image>();
+                marker.LayeredImage.raycastTarget = false;
+                marker.LayeredImage.type = Image.Type.Simple;
+                marker.LayeredImage.sprite = layeredSprite;
+                marker.LayeredImage.color = marker.LayeredImage.color with { a = color.a };
             }
 
             var arrowGO = UIUtils.CreateUIGameObject(visualGO, "layerarrow");
@@ -509,20 +510,57 @@ namespace DynamicMaps.UI.Components
             labelRT.anchorMin = new Vector2(0.5f, 0f);
             labelRT.anchorMax = new Vector2(0.5f, 0f);
             labelRT.pivot = new Vector2(0.5f, 1f);
-            if (markerPivot.HasValue)
-                labelRT.anchoredPosition = new Vector2(0f, size.y * (0.5f - markerPivot.Value.y));
+
+            bool hasLabelImage = labelSpriteTask != null;
+
+            float labelIconSize = Mathf.Min(size.x, size.y) * 0.65f;
             labelRT.sizeDelta = size * _labelSizeMultiplier;
+            labelRT.sizeDelta = labelRT.sizeDelta with { x = labelRT.sizeDelta.x + labelIconSize };
+
+            float labelIconSpacing = 3f;
+            float textLeftInset = hasLabelImage ? labelIconSize + labelIconSpacing : 0f;
+
+            if (hasLabelImage)
+            {
+                labelRT.anchoredPosition = new Vector2(size.x * 0.55f, 0f); // move label to the right of the marker
+                labelRT.anchorMin = new Vector2(0.5f, 0.5f);
+                labelRT.anchorMax = new Vector2(0.5f, 0.5f);
+                labelRT.pivot = new Vector2(0f, 0.5f);
+
+                Plugin.Log.LogInfo($"Creating Label Sprite for {text}.");
+                var labelSpriteGO = UIUtils.CreateUIGameObject(labelGO, "labelSprite");
+                labelSpriteGO.AddComponent<CanvasRenderer>();
+
+                var labelSpriteRT = labelSpriteGO.GetRectTransform();
+                labelSpriteRT.anchorMin = new Vector2(0f, 0.5f);
+                labelSpriteRT.anchorMax = new Vector2(0f, 0.5f);
+                labelSpriteRT.pivot = new Vector2(0f, 0.5f);
+                labelSpriteRT.anchoredPosition = Vector2.zero;
+                labelSpriteRT.sizeDelta = new Vector2(labelIconSize, labelIconSize);
+
+                marker.LabelImage = labelSpriteGO.AddComponent<Image>();
+                marker.LabelImage.raycastTarget = false;
+                marker.LabelImage.type = Image.Type.Simple;
+                marker.LabelImage.preserveAspect = true;
+                if (labelSpriteTask.IsCompletedSuccessfully)
+                    marker.LabelImage.sprite = labelSpriteTask.Result;
+                else
+                    labelSpriteTask.ContinueWith(t => marker.LabelImage.sprite = t.Result);
+                marker.LabelImage.transform.SetAsFirstSibling();
+            }
 
             marker.Label = labelGO.AddComponent<TextMeshProUGUI>();
-            marker.Label.alignment = TextAlignmentOptions.Top;
+            marker.Label.alignment = hasLabelImage ? TextAlignmentOptions.Left : TextAlignmentOptions.Top;
             marker.Label.enableWordWrapping = true;
             marker.Label.enableAutoSizing = true;
             marker.Label.fontSizeMin = _markerMinFontSize;
             marker.Label.fontSizeMax = _markerMaxFontSize;
+            marker.Label.margin = new Vector4(textLeftInset, 0f, 0f, 0f);
             marker.Label.text = marker.Text;
             marker.Label.raycastTarget = false;
 
             marker._hasSetOutline = UIUtils.TrySetTMPOutline(marker.Label);
+            marker.Label.gameObject.SetActive(false);
 
             marker.Color = color;
             marker._size = size;
@@ -564,7 +602,7 @@ namespace DynamicMaps.UI.Components
         {
             _rotation = degreesRotation;
             Image.gameObject.GetRectTransform().localRotation = Quaternion.Euler(0, 0, degreesRotation - _initialRotation);
-            ExtraImage?.gameObject.GetRectTransform().localRotation = Quaternion.Euler(0, 0, degreesRotation - _initialRotation);
+            LayeredImage?.gameObject.GetRectTransform().localRotation = Quaternion.Euler(0, 0, degreesRotation - _initialRotation);
         }
 
         public void MoveAndRotate(Vector3 newPosition, float rotation, bool callback = true)
@@ -585,9 +623,10 @@ namespace DynamicMaps.UI.Components
             var imageAlpha = GetImageAlphaForStatus(status);
             var labelAlpha = GetLabelAlphaForStatus(status);
 
-            Image.color = new Color(Image.color.r, Image.color.g, Image.color.b, imageAlpha);
-            ExtraImage?.color = new Color(ExtraImage.color.r, ExtraImage.color.g, ExtraImage.color.b, imageAlpha);
-            Label.color = new Color(Label.color.r, Label.color.g, Label.color.b, labelAlpha);
+            Image.color = Image.color with { a = imageAlpha };
+            Label.color = Label.color with { a = labelAlpha };
+            LayeredImage?.color = LayeredImage.color with { a = imageAlpha };
+            LabelImage?.color = LabelImage.color with { a = labelAlpha };
             ArrowImage.color = ArrowImage.color with { a = imageAlpha };
 
             if (status is LayerStatus.OnTop)
@@ -616,16 +655,15 @@ namespace DynamicMaps.UI.Components
             }
 
             Image.gameObject.SetActive(imageAlpha > 0f);
-            ExtraImage?.gameObject.SetActive(imageAlpha > 0f);
             Label.gameObject.SetActive(labelAlpha > 0f);
-            gameObject.SetActive(labelAlpha > 0f || imageAlpha > 0f);
 
-            if (ZoneImage != null)
-            {
-                ZoneImage.gameObject.SetActive(labelAlpha > 0f);
-                var zoneAlpha = labelAlpha * 0.15f;
-                ZoneImage.color = new Color(ZoneImage.color.r, ZoneImage.color.g, ZoneImage.color.b, zoneAlpha);
-            }
+            LayeredImage?.gameObject.SetActive(imageAlpha > 0f);
+            LabelImage?.gameObject.SetActive(labelAlpha > 0f);
+
+            ZoneImage?.gameObject.SetActive(labelAlpha > 0f);
+            ZoneImage?.color = ZoneImage.color with { a = labelAlpha * 0.15f };
+
+            gameObject.SetActive(labelAlpha > 0f || imageAlpha > 0f);
 
             if (!_isHovered)
                 UpdateZoneAttachmentLayout();
