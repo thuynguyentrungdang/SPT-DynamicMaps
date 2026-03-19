@@ -131,27 +131,6 @@ public class CustomStaticRouter : StaticRouter
 
     private static Dictionary<string, List<Spawnpoint>> _spawnPoints = null!;
 
-    private static Dictionary<string, List<Spawnpoint>> PopulateSpawnPoints(DatabaseService database)
-    {
-        var locations = database.GetLocations();
-        return new Dictionary<string, List<Spawnpoint>>()
-        {
-            ["bigmap"] = [.. locations.Bigmap.LooseLoot!.Value!.SpawnpointsForced!],
-            ["interchange"] = [.. locations.Interchange.LooseLoot!.Value!.SpawnpointsForced!],
-            ["laboratory"] = [.. locations.Laboratory.LooseLoot!.Value!.SpawnpointsForced!],
-            ["lighthouse"] = [.. locations.Lighthouse.LooseLoot!.Value!.SpawnpointsForced!],
-            ["rezervbase"] = [.. locations.RezervBase.LooseLoot!.Value!.SpawnpointsForced!],
-            ["shoreline"] = [.. locations.Shoreline.LooseLoot!.Value!.SpawnpointsForced!],
-            ["tarkovstreets"] = [.. locations.TarkovStreets.LooseLoot!.Value!.SpawnpointsForced!],
-            ["labyrinth"] = [.. locations.Labyrinth.LooseLoot!.Value!.SpawnpointsForced!],
-            ["woods"] = [.. locations.Woods.LooseLoot!.Value!.SpawnpointsForced!],
-            ["factory4_day"] = [.. locations.Factory4Day.LooseLoot!.Value!.SpawnpointsForced!],
-            ["factory4_night"] = [.. locations.Factory4Night.LooseLoot!.Value!.SpawnpointsForced!],
-            ["sandbox"] = [.. locations.Sandbox.LooseLoot!.Value!.SpawnpointsForced!],
-            ["sandbox_high"] = [.. locations.SandboxHigh.LooseLoot!.Value!.SpawnpointsForced!]
-        };
-    }
-
     private static void CreateMapItemData(string mapName, List<ConditionData> items, ISptLogger<CustomStaticRouter> logger)
     {
         List<Spawnpoint> spawnPoints = _spawnPoints[mapName];

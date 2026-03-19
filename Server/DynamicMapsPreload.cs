@@ -21,19 +21,19 @@ public class DynamicMapsPreload(DatabaseService databaseService) : IOnLoad
         var locations = database.GetLocations();
         return new Dictionary<string, List<Spawnpoint>>()
         {
-            ["bigmap"] = [.. locations.Bigmap.LooseLoot!.Value!.SpawnpointsForced!],
-            ["interchange"] = [.. locations.Interchange.LooseLoot!.Value!.SpawnpointsForced!],
-            ["laboratory"] = [.. locations.Laboratory.LooseLoot!.Value!.SpawnpointsForced!],
-            ["lighthouse"] = [.. locations.Lighthouse.LooseLoot!.Value!.SpawnpointsForced!],
-            ["rezervbase"] = [.. locations.RezervBase.LooseLoot!.Value!.SpawnpointsForced!],
-            ["shoreline"] = [.. locations.Shoreline.LooseLoot!.Value!.SpawnpointsForced!],
-            ["tarkovstreets"] = [.. locations.TarkovStreets.LooseLoot!.Value!.SpawnpointsForced!],
-            ["labyrinth"] = [.. locations.Labyrinth.LooseLoot!.Value!.SpawnpointsForced!],
-            ["woods"] = [.. locations.Woods.LooseLoot!.Value!.SpawnpointsForced!],
-            ["factory4_day"] = [.. locations.Factory4Day.LooseLoot!.Value!.SpawnpointsForced!],
-            ["factory4_night"] = [.. locations.Factory4Night.LooseLoot!.Value!.SpawnpointsForced!],
-            ["sandbox"] = [.. locations.Sandbox.LooseLoot!.Value!.SpawnpointsForced!],
-            ["sandbox_high"] = [.. locations.SandboxHigh.LooseLoot!.Value!.SpawnpointsForced!]
+            ["bigmap"] = [.. locations.Bigmap.LooseLoot!.Value!.SpawnpointsForced!.ToList()],
+            ["interchange"] = [.. locations.Interchange.LooseLoot!.Value!.SpawnpointsForced!.ToList()],
+            ["laboratory"] = [.. locations.Laboratory.LooseLoot!.Value!.SpawnpointsForced!.ToList()],
+            ["lighthouse"] = [.. locations.Lighthouse.LooseLoot!.Value!.SpawnpointsForced!.ToList()],
+            ["rezervbase"] = [.. locations.RezervBase.LooseLoot!.Value!.SpawnpointsForced!.ToList()],
+            ["shoreline"] = [.. locations.Shoreline.LooseLoot!.Value!.SpawnpointsForced!.ToList()],
+            ["tarkovstreets"] = [.. locations.TarkovStreets.LooseLoot!.Value!.SpawnpointsForced!.ToList()],
+            ["labyrinth"] = [.. locations.Labyrinth.LooseLoot!.Value!.SpawnpointsForced!.ToList()],
+            ["woods"] = [.. locations.Woods.LooseLoot!.Value!.SpawnpointsForced!.ToList()],
+            ["factory4_day"] = [.. locations.Factory4Day.LooseLoot!.Value!.SpawnpointsForced!.ToList()],
+            ["factory4_night"] = [.. locations.Factory4Night.LooseLoot!.Value!.SpawnpointsForced!.ToList()],
+            ["sandbox"] = [.. locations.Sandbox.LooseLoot!.Value!.SpawnpointsForced!.ToList()],
+            ["sandbox_high"] = [.. locations.SandboxHigh.LooseLoot!.Value!.SpawnpointsForced!.ToList()]
         };
     }
 }
